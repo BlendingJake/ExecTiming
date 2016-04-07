@@ -64,6 +64,17 @@ class PyTimer:
 
         return averages
 
+    def format_split(self, split):
+        data = self.get_split(split)
+        out = "Point, Time Since Start, Time Elapsed Between Points\n"
+
+        for i in data:
+            out += i["message"] + ": "
+            out += str(i["time"]) + " s, "
+            out += str(i["elapsed"]) + " s\n"
+
+        return out
+
     # get point data at location [split][pos]
     def get_point(self, pos, split=0):
         if 0 <= split < len(self.logged_times):
@@ -75,7 +86,18 @@ class PyTimer:
         else:
             raise IndexError("Split value is invalid")
 
-            # get count of number of points logged
+    # get all points in split
+    def get_split(self, split):
+        if 0 <= split < len(self.logged_times):
+            back = []
+
+            for i in range(len(self.logged_times[split])):
+                back.append({"elapsed": self.elapsed_times[split][i], "message": self.logged_messages[split][i],
+                        "time": self.logged_times[split][i]})
+
+            return back
+        else:
+            raise IndexError("Split value is invalid")
 
     def log(self, message=""):
         if message == "":
