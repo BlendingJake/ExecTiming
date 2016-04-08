@@ -158,6 +158,9 @@ class PyTimer:
             raise IndexError("Split value is invalid")
 
     def log(self, message=""):
+        if self.start_time == 0:
+            raise RuntimeError("Timer never started")
+
         if message == "":
             message += "Point " + str(self.number_points() + 1)
 
@@ -181,6 +184,9 @@ class PyTimer:
         self.__init__()
 
     def split(self, message=""):
+        if self.start_time == 0:
+            raise RuntimeError("Timer never started")
+
         self.elapsed_counter = 0
         self.split_messages.append(message)
         self.start_time = timeit.default_timer()
@@ -194,6 +200,9 @@ class PyTimer:
         self.start_time = timeit.default_timer()
 
     def stop(self):
+        if self.start_time == 0:
+            raise RuntimeError("Timer never started")
+
         self.log("Stop")
         self.stop_time = timeit.default_timer()
 
