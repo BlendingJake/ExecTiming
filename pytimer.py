@@ -25,25 +25,18 @@ class PyTimer:
         self.split_messages = []
 
         self.start_time = 0
+        self.stop_time = 0
         self.elapsed_counter = 0
         self.rounding = rounder
 
         self.__split_pos = 0
 
     def __str__(self):
-        out = "Point, Time Since Start, Time Elapsed Between Points\n"
-
-        for i in range(len(self.logged_times)):
-            for i2 in range(len(self.logged_times[i])):
-                out += self.logged_messages[i][i2] + ": "
-                out += str(self.logged_times[i][i2]) + " s, "
-                out += str(self.elapsed_times[i][i2]) + " s\n"
-
-            # check for split
-            if i < len(self.split_messages) > 0:
-                out += "--Split: " + self.split_messages[i] + "--\n"
-
-        return out
+        if self.stop_time == 0:
+            return "Not Stopped, Current Running Time: " + str(round(timeit.default_timer() -
+                                                                     self.start_time, self.rounding)) + " s"
+        else:
+            return "Total Time Recorded: " + str(round(self.stop_time - self.start_time, self.rounding)) + " s"
 
     # average all elapsed times together
     def average(self):
@@ -79,6 +72,53 @@ class PyTimer:
 
         return averages
 
+    def display(self):
+        print(self.format())
+
+    def display_last(self):
+        print(self.format_last())
+
+    def display_point(self, pos, split=0):
+        print(self.format_point(pos, split))
+
+    def display_split(self, split):
+        print(self.format_split(split))
+
+    def format(self):
+        out = "Point, Time Since Start, Time Elapsed Between Points\n"
+
+        for i in range(len(self.logged_times)):
+            for i2 in range(len(self.logged_times[i])):
+                out += self.logged_messages[i][i2] + ": "
+                out += str(self.logged_times[i][i2]) + " s, "
+                out += str(self.elapsed_times[i][i2]) + " s\n"
+
+            # check for split
+            if i < len(self.split_messages) > 0:
+                out += "--Split: " + self.split_messages[i] + "--\n"
+
+        return out
+
+    def format_last(self):
+        data = self.get_last()
+        out = "Point, Time Since Start, Time Elapsed Between Points\n"
+
+        out += data["message"] + ": "
+        out += str(data["time"]) + " s, "
+        out += str(data["elapsed"]) + " s\n"
+
+        return out
+
+    def format_point(self, pos, split=0):
+        data = self.get_point(pos, split)
+        out = "Point, Time Since Start, Time Elapsed Between Points\n"
+
+        out += data["message"] + ": "
+        out += str(data["time"]) + " s, "
+        out += str(data["elapsed"]) + " s\n"
+
+        return out
+
     def format_split(self, split):
         data = self.get_split(split)
         out = "Point, Time Since Start, Time Elapsed Between Points\n"
@@ -89,6 +129,9 @@ class PyTimer:
             out += str(i["elapsed"]) + " s\n"
 
         return out
+
+    def get_last(self):
+        return self.get_point(len(self.logged_times[self.__split_pos - 1]) - 1, self.__split_pos - 1)
 
     # get point data at location [split][pos]
     def get_point(self, pos, split=0):
@@ -134,6 +177,9 @@ class PyTimer:
 
         return count
 
+    def reset(self):
+        self.__init__()
+
     def split(self, message=""):
         self.elapsed_counter = 0
         self.split_messages.append(message)
@@ -149,6 +195,7 @@ class PyTimer:
 
     def stop(self):
         self.log("Stop")
+        self.stop_time = timeit.default_timer()
 
     # return total time from start to last logged point
     def total(self):
