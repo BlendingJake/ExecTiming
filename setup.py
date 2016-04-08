@@ -1,4 +1,4 @@
-from distutils import setup
+from distutils.core import setup
 
 setup(name="pytimer",
       version="0.1",
