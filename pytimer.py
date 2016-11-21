@@ -217,9 +217,8 @@ class PyTimer(object):
         self._logged_messages = [[]]
         self._split_messages = []
 
-        self._start_time = time()
-        self._running_time = time()
         self._paused = False
+        self.start()
 
     def resume(self):
         self._paused = False
@@ -234,3 +233,9 @@ class PyTimer(object):
         self._elapsed_times.append([])
         self._logged_messages.append([])
         self._running_time = time()
+
+    def times(self, i):
+        if 0 <= i <= len(self._elapsed_times[i]):
+            return self._elapsed_times[i]
+        else:
+            return None
