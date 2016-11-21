@@ -108,6 +108,54 @@ class PyTimer(object):
         """
         return [self.deviation(i) for i in range(len(self._elapsed_times))]
 
+    def display_average(self, i):
+        """
+        Display average for split i in a formatted view if i is a valid, non-empty split
+        :param i: split position
+        """
+        num = self.average(i)
+        if num is not None:
+            print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
+                  ":\n\tAverage: " + self._format_time(num))
+
+    def display_averages(self):
+        """
+        Display averages for all splits in a formatted view
+        """
+        av = self.averages()
+        for i in range(len(av)):
+            if av[i] is not None:
+                print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
+                      ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(av[i]))
+
+    def display_deviation(self, i):
+        """
+        Display standard deviation for split i in a formatted view if i is a valid, non-empty split
+        :param i: split position
+        """
+        dev = self.deviation(i)
+        if dev is not None:
+            print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
+                  ":\n\tStandard Deviation: " + self._format_time(dev))
+
+    def display_deviations(self):
+        """
+        Display standard deviation for all splits in a formatted view
+        """
+        devs = self.deviations()
+        for i in range(len(devs)):
+            if devs[i] is not None:
+                print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
+                      ":\n\tStandard Deviation: " + self._format_time(devs[i]))
+
+    def display_split(self, i):
+        """
+        Display all values in split if i is valid position for split
+        :param i: position of split
+        """
+        if 0 <= i <= len(self._elapsed_times) and len(self._elapsed_times[i]) > 0:
+            print(self._format_split(i))
+
     def evaluate(self, block, iterations, *args):
         """
         Evaluates a string of code or a function and times how long it takes for each iteration. If block is a function,
@@ -164,53 +212,14 @@ class PyTimer(object):
     def pause(self):
         self._paused = True
 
-    def display_average(self, i):
-        """
-        Display average for split i in a formatted view if i is a valid, non-empty split
-        :param i: split position
-        """
-        num = self.average(i)
-        if num is not None:
-            print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
-                  ":\n\tAverage: " + self._format_time(num))
+    def reset(self):
+        self._elapsed_times = [[]]
+        self._logged_messages = [[]]
+        self._split_messages = []
 
-    def display_averages(self):
-        """
-        Display averages for all splits in a formatted view
-        """
-        av = self.averages()
-        for i in range(len(av)):
-            if av[i] is not None:
-                print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
-                      ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(av[i]))
-
-    def display_deviation(self, i):
-        """
-        Display standard deviation for split i in a formatted view if i is a valid, non-empty split
-        :param i: split position
-        """
-        dev = self.deviation(i)
-        if dev is not None:
-            print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
-                  ":\n\tStandard Deviation: " + self._format_time(dev))
-
-    def display_deviations(self):
-        """
-        Display standard deviation for all splits in a formatted view
-        """
-        devs = self.deviations()
-        for i in range(len(devs)):
-            if devs[i] is not None:
-                print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
-                      ":\n\tStandard Deviation: " + self._format_time(devs[i]))
-
-    def display_split(self, i):
-        """
-        Display all values in split if i is valid position for split
-        :param i: position of split
-        """
-        if 0 <= i <= len(self._elapsed_times) and len(self._elapsed_times[i]) > 0:
-            print(self._format_split(i))
+        self._start_time = time()
+        self._running_time = time()
+        self._paused = False
 
     def resume(self):
         self._paused = False
