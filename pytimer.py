@@ -37,7 +37,8 @@ class PyTimer(object):
         # pretty print table
         strings = []
         for i in range(len(self._elapsed_times)):  # for every split
-            strings.append(self._format_split(i))
+            if len(self._elapsed_times[i]) > 0:
+                strings.append(self._format_split(i))
 
         return "".join(strings)
 
@@ -163,7 +164,7 @@ class PyTimer(object):
     def pause(self):
         self._paused = True
 
-    def print_average(self, i):
+    def display_average(self, i):
         """
         Display average for split i in a formatted view if i is a valid, non-empty split
         :param i: split position
@@ -173,7 +174,7 @@ class PyTimer(object):
             print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
                   ":\n\tAverage: " + self._format_time(num))
 
-    def print_averages(self):
+    def display_averages(self):
         """
         Display averages for all splits in a formatted view
         """
@@ -183,7 +184,7 @@ class PyTimer(object):
                 print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
                       ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(av[i]))
 
-    def print_deviation(self, i):
+    def display_deviation(self, i):
         """
         Display standard deviation for split i in a formatted view if i is a valid, non-empty split
         :param i: split position
@@ -193,7 +194,7 @@ class PyTimer(object):
             print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
                   ":\n\tStandard Deviation: " + self._format_time(dev))
 
-    def print_deviations(self):
+    def display_deviations(self):
         """
         Display standard deviation for all splits in a formatted view
         """
@@ -203,12 +204,12 @@ class PyTimer(object):
                 print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
                       ":\n\tStandard Deviation: " + self._format_time(devs[i]))
 
-    def print_split(self, i):
+    def display_split(self, i):
         """
         Display all values in split if i is valid position for split
         :param i: position of split
         """
-        if 0 <= i <= len(self._elapsed_times):
+        if 0 <= i <= len(self._elapsed_times) and len(self._elapsed_times[i]) > 0:
             print(self._format_split(i))
 
     def resume(self):

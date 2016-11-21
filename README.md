@@ -1,4 +1,19 @@
 # PyTimer
-An advanced timer for Python that builds upon timeit and allows code execution times to be determined easily.
-Timer splitting and timer logging can be done easily to allow multiple trials or sections to all be recorded
-and viewed easily.
+An advanced timer for Python that makes it easy to determine execution times. Notable features include: easy splitting, calculation of averages and standard deviation, displaying formatted views of collected data, and evaluation of functions and code in strings.
+
+Quick Start:
+    
+    from pytimer import PyTimer
+    timer = PyTimer()
+    timer.start()
+    for run in range(100):
+   
+        temp = ""
+        
+        for i in range(1000):
+        
+            temp += str(i)
+            
+        timer.log()
+        
+    timer.print_average(0)
