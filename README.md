@@ -16,4 +16,4 @@ Quick Start:
             
         timer.log()
         
-    timer.print_average(0)
+    timer.display_average(0)
