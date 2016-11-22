@@ -43,13 +43,13 @@ class PyTimer(object):
 
         return "".join(strings)
 
-    def _format_time(self, t):
+    def _format_time(self, t: int) -> str:
         if t < 0.001:
             return str(round(t * 1000, self.rounding)) + " ms"
         else:
             return str(round(t, self.rounding)) + " s"
 
-    def _format_split(self, i):
+    def _format_split(self, i: int) -> str:
         string = []
         string.append("Split " + str(i + 1) + ":" if i >= len(self._split_messages) or self._split_messages[i] == ""
                       else self._split_messages[i] + ":")
@@ -73,10 +73,10 @@ class PyTimer(object):
         if not self._started:
             raise RuntimeError("Timer was never started")
 
-    def _valid_split(self, i):
+    def _valid_split(self, i: int) -> bool:
         return len(self._split_messages) > 0 and 0 <= i <= len(self._split_messages) and self._split_messages[i] != ""
 
-    def average(self, i):
+    def average(self, i: int) -> float:
         """
         Calculates average for i'th split
         :param i: Index of split to determine average for
@@ -92,14 +92,14 @@ class PyTimer(object):
         else:
             return None
 
-    def averages(self):
+    def averages(self) -> list:
         """
         Returns averages for every split. If split i has no values, then list[i] is None
         :return: list of averages, if position i is invalid, then list[i] is None
         """
         return [self.average(i) for i in range(len(self._elapsed_times))]
 
-    def deviation(self, i):
+    def deviation(self, i: int) -> float:
         """
         Calculates standard deviation for split i
         :param i: split position
@@ -114,14 +114,14 @@ class PyTimer(object):
         else:
             return None
 
-    def deviations(self):
+    def deviations(self) -> list:
         """
         Calculates standard deviations for every split. If split is invalid or empty, then value is None for that split
         :return: list of standard deviations for all splits
         """
         return [self.deviation(i) for i in range(len(self._elapsed_times))]
 
-    def display_average(self, i):
+    def display_average(self, i: int):
         """
         Display average for split i in a formatted view if i is a valid, non-empty split
         :param i: split position
@@ -141,7 +141,7 @@ class PyTimer(object):
                 print(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
                       ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(av[i]))
 
-    def display_deviation(self, i):
+    def display_deviation(self, i: int):
         """
         Display standard deviation for split i in a formatted view if i is a valid, non-empty split
         :param i: split position
@@ -161,7 +161,7 @@ class PyTimer(object):
                 print(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
                       ":\n\tStandard Deviation: " + self._format_time(devs[i]))
 
-    def display_split(self, i):
+    def display_split(self, i: int):
         """
         Display all values in split if i is valid position for split
         :param i: position of split
@@ -170,7 +170,7 @@ class PyTimer(object):
         if 0 <= i <= len(self._elapsed_times) and len(self._elapsed_times[i]) > 0:
             print(self._format_split(i))
 
-    def evaluate(self, block, iterations, *args):
+    def evaluate(self, block, iterations: int, *args):
         """
         Evaluates a string of code or a function and times how long it takes for each iteration. If block is a function,
         then parameters can be passed to it like so: evaluate(bar, 100, 12, "something") -> bar(12, "something"). No
@@ -218,7 +218,7 @@ class PyTimer(object):
         else:
             raise RuntimeWarning("Timer Is Currently Paused: Log Had No Effect")
 
-    def overall_time(self):
+    def overall_time(self) -> float:
         """
         :return: Elapsed time since start()
         """
@@ -254,7 +254,7 @@ class PyTimer(object):
         self._logged_messages.append([])
         self._running_time = time()
 
-    def times(self, i):
+    def times(self, i: int) -> list:
         self._is_started()
         if 0 <= i <= len(self._elapsed_times[i]):
             return self._elapsed_times[i]
