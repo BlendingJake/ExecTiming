@@ -29,6 +29,7 @@ class PyTimer(object):
     _start_time = 0
     _running_time = 0
     _paused = False
+    _started = False
 
     def __init__(self, rounder=4):
         self.rounding = rounder
@@ -65,12 +66,24 @@ class PyTimer(object):
 
         return "".join(string)
 
+    def _is_started(self):
+        """
+        Called by most methods to start out with, to make sure the timer has been started.
+        """
+        if not self._started:
+            raise RuntimeError("Timer was never started")
+
+    def _valid_split(self, i):
+        return len(self._split_messages) > 0 and 0 <= i <= len(self._split_messages) and self._split_messages[i] != ""
+
     def average(self, i):
         """
         Calculates average for i'th split
         :param i: Index of split to determine average for
         :return: None if invalid or empty split, otherwise average for split
         """
+        self._is_started()
+
         if 0 <= i < len(self._elapsed_times) and len(self._elapsed_times[i]) > 0:
             count = 0
             for j in range(len(self._elapsed_times[i])):
@@ -115,8 +128,8 @@ class PyTimer(object):
         """
         num = self.average(i)
         if num is not None:
-            print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
-                  ":\n\tAverage: " + self._format_time(num))
+            print(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
+                  ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(num))
 
     def display_averages(self):
         """
@@ -125,7 +138,7 @@ class PyTimer(object):
         av = self.averages()
         for i in range(len(av)):
             if av[i] is not None:
-                print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
+                print(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
                       ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(av[i]))
 
     def display_deviation(self, i):
@@ -135,7 +148,7 @@ class PyTimer(object):
         """
         dev = self.deviation(i)
         if dev is not None:
-            print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
+            print(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
                   ":\n\tStandard Deviation: " + self._format_time(dev))
 
     def display_deviations(self):
@@ -145,7 +158,7 @@ class PyTimer(object):
         devs = self.deviations()
         for i in range(len(devs)):
             if devs[i] is not None:
-                print(("Split " + str(i + 1) if self._split_messages[i] == "" else self._split_messages[i]) +
+                print(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
                       ":\n\tStandard Deviation: " + self._format_time(devs[i]))
 
     def display_split(self, i):
@@ -153,6 +166,7 @@ class PyTimer(object):
         Display all values in split if i is valid position for split
         :param i: position of split
         """
+        self._is_started()
         if 0 <= i <= len(self._elapsed_times) and len(self._elapsed_times[i]) > 0:
             print(self._format_split(i))
 
@@ -196,6 +210,7 @@ class PyTimer(object):
         Log elapsed time. Will raise RuntimeWarning if timer is currently paused
         :param message: optional: store message with the log
         """
+        self._is_started()
         if not self._paused:
             self._elapsed_times[len(self._elapsed_times) - 1].append(time() - self._running_time)
             self._logged_messages[len(self._logged_messages) - 1].append(str(message))
@@ -207,9 +222,11 @@ class PyTimer(object):
         """
         :return: Elapsed time since start()
         """
+        self._is_started()
         return time() - self._start_time
 
     def pause(self):
+        self._is_started()
         self._paused = True
 
     def reset(self):
@@ -221,20 +238,24 @@ class PyTimer(object):
         self.start()
 
     def resume(self):
+        self._is_started()
         self._paused = False
         self._running_time = time()
 
     def start(self):
         self._start_time = time()
         self._running_time = time()
+        self._started = True
 
     def split(self, message=""):
+        self._is_started()
         self._split_messages.append(message)
         self._elapsed_times.append([])
         self._logged_messages.append([])
         self._running_time = time()
 
     def times(self, i):
+        self._is_started()
         if 0 <= i <= len(self._elapsed_times[i]):
             return self._elapsed_times[i]
         else:
