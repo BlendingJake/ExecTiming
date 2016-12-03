@@ -43,7 +43,14 @@ class PyTimer(object):
 
         return "".join(strings)
 
-    def _format_time(self, t: int) -> str:
+    def _confirm_started(self):
+        """
+        Called by most methods to start out with, confirm that timer has been started
+        """
+        if not self._started:
+            self._start()
+
+    def _format_time(self, t: float) -> str:
         if t < 0.001:
             return str(round(t * 1000, self.rounding)) + " ms"
         else:
@@ -66,12 +73,10 @@ class PyTimer(object):
 
         return "".join(string)
 
-    def _is_started(self):
-        """
-        Called by most methods to start out with, to make sure the timer has been started.
-        """
-        if not self._started:
-            raise RuntimeError("Timer was never started")
+    def _start(self):
+        self._start_time = time()
+        self._running_time = time()
+        self._started = True
 
     def _valid_split(self, i: int) -> bool:
         return len(self._split_messages) > 0 and 0 <= i <= len(self._split_messages) and self._split_messages[i] != ""
@@ -82,7 +87,7 @@ class PyTimer(object):
         :param i: Index of split to determine average for
         :return: None if invalid or empty split, otherwise average for split
         """
-        self._is_started()
+        self._confirm_started()
 
         if 0 <= i < len(self._elapsed_times) and len(self._elapsed_times[i]) > 0:
             count = 0
@@ -98,6 +103,21 @@ class PyTimer(object):
         :return: list of averages, if position i is invalid, then list[i] is None
         """
         return [self.average(i) for i in range(len(self._elapsed_times))]
+
+    def decorator(self, function: callable) -> callable:
+        """
+        Returns a decorator so that functions can be timed with having to use evaluate, but functions can't take any
+        parameters
+        :param function: takes a function as a parameter
+        :return: a wrapper function for use as a decorator
+        """
+        self._confirm_started()
+
+        def wrapper():
+            function()
+            self.log()
+            self.split("Function -> " + function.__name__)
+        return wrapper
 
     def deviation(self, i: int) -> float:
         """
@@ -166,9 +186,17 @@ class PyTimer(object):
         Display all values in split if i is valid position for split
         :param i: position of split
         """
-        self._is_started()
+        self._confirm_started()
         if 0 <= i <= len(self._elapsed_times) and len(self._elapsed_times[i]) > 0:
             print(self._format_split(i))
+
+    def display_splits(self):
+        """
+        Display all values for all splits
+        """
+        self._confirm_started()
+        for i in range(len(self._elapsed_times)):
+            self.display_split(i)
 
     def evaluate(self, block, iterations: int, *args):
         """
@@ -210,7 +238,7 @@ class PyTimer(object):
         Log elapsed time. Will raise RuntimeWarning if timer is currently paused
         :param message: optional: store message with the log
         """
-        self._is_started()
+        self._confirm_started()
         if not self._paused:
             self._elapsed_times[len(self._elapsed_times) - 1].append(time() - self._running_time)
             self._logged_messages[len(self._logged_messages) - 1].append(str(message))
@@ -220,13 +248,13 @@ class PyTimer(object):
 
     def overall_time(self) -> float:
         """
-        :return: Elapsed time since start()
+        :return: Elapsed time since _start()
         """
-        self._is_started()
+        self._confirm_started()
         return time() - self._start_time
 
     def pause(self):
-        self._is_started()
+        self._confirm_started()
         self._paused = True
 
     def reset(self):
@@ -235,27 +263,22 @@ class PyTimer(object):
         self._split_messages = []
 
         self._paused = False
-        self.start()
+        self._start()
 
     def resume(self):
-        self._is_started()
+        self._confirm_started()
         self._paused = False
         self._running_time = time()
 
-    def start(self):
-        self._start_time = time()
-        self._running_time = time()
-        self._started = True
-
     def split(self, message=""):
-        self._is_started()
+        self._confirm_started()
         self._split_messages.append(message)
         self._elapsed_times.append([])
         self._logged_messages.append([])
         self._running_time = time()
 
     def times(self, i: int) -> list:
-        self._is_started()
+        self._confirm_started()
         if 0 <= i <= len(self._elapsed_times[i]):
             return self._elapsed_times[i]
         else:
