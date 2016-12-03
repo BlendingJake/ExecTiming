@@ -5,7 +5,6 @@ Quick Start:
     
     from pytimer import PyTimer
     timer = PyTimer()
-    timer.start()
     for run in range(100):
    
         temp = ""
