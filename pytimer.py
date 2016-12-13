@@ -28,6 +28,8 @@ class PyTimer(object):
 
     _start_time = 0
     _running_time = 0
+    _decorator_reps = 1
+    _decorator_iterations = 1
     _paused = False
     _started = False
 
@@ -57,21 +59,19 @@ class PyTimer(object):
             return str(round(t, self.rounding)) + " s"
 
     def _format_split(self, i: int) -> str:
-        string = []
-        string.append("Split " + str(i + 1) + ":" if i >= len(self._split_messages) or self._split_messages[i] == ""
-                      else self._split_messages[i] + ":")
+        str_list = ["Split " + str(i + 1) + ":" if i >= len(self._split_messages) or self._split_messages[i] == ""
+                    else self._split_messages[i] + ":", "\n"]
 
-        string.append("\n")
         for j in range(len(self._elapsed_times[i])):  # for every log in split
-            string.append("\t")
-            string.append(self._format_time(self._elapsed_times[i][j]) + (": {}".
-                                                                          format(self._logged_messages[i][j])
-                                                                          if self._logged_messages[i][j] != ""
-                                                                          else ""))
-            string.append("\n")
-        string.append("\n")
+            str_list.append("\t")
+            str_list.append(self._format_time(self._elapsed_times[i][j]) + (": {}".
+                                                                            format(self._logged_messages[i][j])
+                                                                            if self._logged_messages[i][j] != ""
+                                                                            else ""))
+            str_list.append("\n")
+        str_list.append("\n")
 
-        return "".join(string)
+        return "".join(str_list)
 
     def _start(self):
         self._start_time = time()
@@ -114,8 +114,10 @@ class PyTimer(object):
         self._confirm_started()
 
         def wrapper():
-            function()
-            self.log()
+            for i in range(self._decorator_iterations):
+                for j in range(self._decorator_reps):
+                    function()
+                self.log()
             self.split("Function -> " + function.__name__)
         return wrapper
 
@@ -198,16 +200,21 @@ class PyTimer(object):
         for i in range(len(self._elapsed_times)):
             self.display_split(i)
 
-    def evaluate(self, block, iterations: int, *args):
+    def evaluate(self, block, reps=10, iterations=100, *args):
         """
         Evaluates a string of code or a function and times how long it takes for each iteration. If block is a function,
         then parameters can be passed to it like so: evaluate(bar, 100, 12, "something") -> bar(12, "something"). No
         error checking is done, meaning any error that is raised within block will crash the entire program.
         :param block: either function or string of code
-        :param iterations: number of times to run block
+        :param reps: number of runs of block before logging time
+        :param iterations: number of times running reps
         :param args: any arguments that needs to be passed into block if block is a function
         """
+        self._confirm_started()
         self.pause()
+
+        if reps < 1 or iterations < 1:
+            raise ValueError("Reps and Iterations cannot be less than 1")
 
         # build string with function and needed variables
         string = ""
@@ -230,7 +237,8 @@ class PyTimer(object):
             self.resume()
 
             for i in range(iterations):
-                exec(string)
+                for j in range(reps):
+                    exec(string)
                 self.log()
 
     def log(self, message=""):
@@ -244,7 +252,7 @@ class PyTimer(object):
             self._logged_messages[len(self._logged_messages) - 1].append(str(message))
             self._running_time = time()
         else:
-            raise RuntimeWarning("Timer Is Currently Paused: Log Had No Effect")
+            raise RuntimeWarning("Timer is currently paused: log had no affect")
 
     def overall_time(self) -> float:
         """
@@ -269,6 +277,18 @@ class PyTimer(object):
         self._confirm_started()
         self._paused = False
         self._running_time = time()
+
+    def setup_decorator(self, reps=1, iterations=1):
+        """
+        Allow decorator to run function for multiple reps and iterations
+        :param reps: the number of times to run the function before logging time
+        :param iterations: the number of times to run reps
+        """
+        if reps < 1 or iterations < 1:
+            raise ValueError("Reps and Iterations cannot be less than 1")
+
+        self._decorator_iterations = iterations
+        self._decorator_reps = reps
 
     def split(self, message=""):
         self._confirm_started()
