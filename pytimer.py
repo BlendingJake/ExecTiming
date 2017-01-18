@@ -41,7 +41,7 @@ class PyTimer(object):
         strings = []
         for i in range(len(self._elapsed_times)):  # for every split
             if len(self._elapsed_times[i]) > 0:
-                strings.append(self._format_split(i))
+                strings.append(self._format_split(i, True))
 
         return "".join(strings)
 
@@ -58,7 +58,7 @@ class PyTimer(object):
         else:
             return str(round(t, self.rounding)) + " s"
 
-    def _format_split(self, i: int) -> str:
+    def _format_split(self, i: int, newline: bool) -> str:
         str_list = ["Split " + str(i + 1) + ":" if i >= len(self._split_messages) or self._split_messages[i] == ""
                     else self._split_messages[i] + ":", "\n"]
 
@@ -69,7 +69,11 @@ class PyTimer(object):
                                                                             if self._logged_messages[i][j] != ""
                                                                             else ""))
             str_list.append("\n")
-        str_list.append("\n")
+
+        if len(self._elapsed_times[i]) == 0:  # empty split
+            str_list.append("\t-- Empty Split --")
+        if newline:
+            str_list.append("\n")
 
         return "".join(str_list)
 
@@ -79,9 +83,9 @@ class PyTimer(object):
         self._started = True
 
     def _valid_split(self, i: int) -> bool:
-        return len(self._split_messages) > 0 and 0 <= i <= len(self._split_messages) and self._split_messages[i] != ""
+        return len(self._split_messages) > 0 and 0 <= i < len(self._split_messages) and self._split_messages[i] != ""
 
-    def average(self, i: int) -> float:
+    def average(self, i: int):
         """
         Calculates average for i'th split
         :param i: Index of split to determine average for
@@ -94,8 +98,10 @@ class PyTimer(object):
             for j in range(len(self._elapsed_times[i])):
                 count += self._elapsed_times[i][j]
             return count / len(self._elapsed_times[i])
-        else:
+        elif 0 <= i < len(self._elapsed_times):  # empty split
             return None
+        else:
+            raise IndexError("Invalid split index, must be in [0-{}]".format(len(self._elapsed_times) - 1))
 
     def averages(self) -> list:
         """
@@ -125,7 +131,7 @@ class PyTimer(object):
             self.split("Function -> " + function.__name__)
         return wrapper
 
-    def deviation(self, i: int) -> float:
+    def deviation(self, i: int):
         """
         Calculates standard deviation for split i
         :param i: split position
@@ -155,7 +161,9 @@ class PyTimer(object):
         num = self.average(i)
         if num is not None:
             print(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
-                  ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(num))
+                  ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(num) + "\n")
+        else:
+            print(self._format_split(i, True))
 
     def display_averages(self):
         """
@@ -167,6 +175,9 @@ class PyTimer(object):
                 print(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
                       ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(av[i]))
 
+        if len(av) > 0:  # add final newline
+            print()
+
     def display_deviation(self, i: int):
         """
         Display standard deviation for split i in a formatted view if i is a valid, non-empty split
@@ -175,7 +186,9 @@ class PyTimer(object):
         dev = self.deviation(i)
         if dev is not None:
             print(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
-                  ":\n\tStandard Deviation: " + self._format_time(dev))
+                  ":\n\tStandard Deviation: " + self._format_time(dev) + "\n")
+        else:
+            print(self._format_split(i, True))
 
     def display_deviations(self):
         """
@@ -187,14 +200,19 @@ class PyTimer(object):
                 print(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
                       ":\n\tStandard Deviation: " + self._format_time(devs[i]))
 
+        if len(devs) > 0:  # add newline
+            print()
+
     def display_split(self, i: int):
         """
         Display all values in split if i is valid position for split
         :param i: position of split
         """
         self._confirm_started()
-        if 0 <= i <= len(self._elapsed_times) and len(self._elapsed_times[i]) > 0:
-            print(self._format_split(i))
+        if 0 <= i < len(self._elapsed_times):
+            print(self._format_split(i, False))
+        else:
+            raise IndexError("Invalid split index, must be in [0-{}]".format(len(self._elapsed_times) - 1))
 
     def display_splits(self):
         """
@@ -293,7 +311,7 @@ class PyTimer(object):
             else:
                 raise TypeError("Reps must be an integer value")
         else:
-            reps = 1
+            reps = rep_default
 
         if 'iterations' in kwargs:
             if isinstance(kwargs['iterations'], int) and kwargs['iterations'] >= 1:
@@ -303,7 +321,7 @@ class PyTimer(object):
             else:
                 raise TypeError("Iterations must be an integer value")
         else:
-            iterations = 10
+            iterations = iter_default
 
         return reps, iterations
 
@@ -341,7 +359,7 @@ class PyTimer(object):
         self._logged_messages.append([])
         self._running_time = time()
 
-    def times(self, i: int) -> list:
+    def times(self, i: int):
         self._confirm_started()
         if 0 <= i <= len(self._elapsed_times[i]):
             return self._elapsed_times[i]
