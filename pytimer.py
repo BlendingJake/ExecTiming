@@ -113,10 +113,14 @@ class PyTimer(object):
         """
         self._confirm_started()
 
-        def wrapper():
+        def wrapper(*args):
+            """
+            wrapper returned when using as decorator
+            :param args: (optional) values to be passed into function that is being called
+            """
             for i in range(self._decorator_iterations):
                 for j in range(self._decorator_reps):
-                    function()
+                    function(*args)
                 self.log()
             self.split("Function -> " + function.__name__)
         return wrapper
@@ -281,11 +285,11 @@ class PyTimer(object):
     def setup_decorator(self, reps=1, iterations=1):
         """
         Allow decorator to run function for multiple reps and iterations
-        :param reps: the number of times to run the function before logging time
-        :param iterations: the number of times to run reps
+        :param reps: (optional) the number of times to run the function before logging time
+        :param iterations: (optional) the number of times to run reps
         """
         if reps < 1 or iterations < 1:
-            raise ValueError("Reps and Iterations cannot be less than 1")
+            raise ValueError("Reps and iterations cannot be less than 1")
 
         self._decorator_iterations = iterations
         self._decorator_reps = reps
