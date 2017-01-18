@@ -207,8 +207,9 @@ class PyTimer(object):
     def evaluate(self, block, *args, **kwargs):
         """
         Evaluates a string of code or a function and times how long it takes for each iteration. If block is a function,
-        then parameters can be passed to it like so: evaluate(bar, 100, 12, "something") -> bar(12, "something"). No
-        error checking is done, meaning any error that is raised within block will crash the entire program.
+        then parameters can be passed to it like so: evaluate(bar, "something", 12, iterations=100) ->
+        bar("something", 12). No error checking is done, meaning any error that is raised within block will crash
+        the entire program.
         :param block: either function or string of code
         :param args: any arguments that needs to be passed into block if block is a function
         :param kwargs: can be any in (reps, iterations, message) which have their usual definition
@@ -275,7 +276,15 @@ class PyTimer(object):
         return time() - self._start_time
 
     @classmethod
-    def _parse_kwargs_reps_iter(self, kwargs, rep_default, iter_default):
+    def _parse_kwargs_reps_iter(cls, kwargs: dict, rep_default: int, iter_default: int):
+        """
+        Checks kwargs for reps and iterations and makes sure they are the correct type and >= 1, if either aren't then
+        their default value is returned
+        :param kwargs: dictionary
+        :param rep_default: the value to use for reps if not found in kwargs
+        :param iter_default: the value to use for iterations if not found in kwargs
+        :return: reps and iterations either as their default values or the value found in kwargs
+        """
         if 'reps' in kwargs:
             if isinstance(kwargs['reps'], int) and kwargs['reps'] >= 1:
                 reps = kwargs['reps']
