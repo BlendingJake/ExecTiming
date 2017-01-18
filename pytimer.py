@@ -204,26 +204,46 @@ class PyTimer(object):
         for i in range(len(self._elapsed_times)):
             self.display_split(i)
 
-    def evaluate(self, block, reps=10, iterations=100, *args):
+    def evaluate(self, block, *args, **kwargs):
         """
         Evaluates a string of code or a function and times how long it takes for each iteration. If block is a function,
         then parameters can be passed to it like so: evaluate(bar, 100, 12, "something") -> bar(12, "something"). No
         error checking is done, meaning any error that is raised within block will crash the entire program.
         :param block: either function or string of code
-        :param reps: number of runs of block before logging time
-        :param iterations: number of times running reps
         :param args: any arguments that needs to be passed into block if block is a function
+        :param kwargs: can be any in (reps, iterations, message) which have their usual definition
         """
         self._confirm_started()
         self.pause()
 
-        if reps < 1 or iterations < 1:
-            raise ValueError("Reps and Iterations cannot be less than 1")
+        if 'reps' in kwargs:
+            if isinstance(kwargs['reps'], int) and kwargs['reps'] >= 1:
+                reps = kwargs['reps']
+            elif isinstance(kwargs['reps'], int) and kwargs['reps'] <= 0:
+                raise ValueError("Reps cannot be less than 1")
+            else:
+                raise TypeError("Reps must be an integer value")
+        else:
+            reps = 10
+
+        if 'iterations' in kwargs:
+            if isinstance(kwargs['iterations'], int) and kwargs['iterations'] >= 1:
+                iterations = kwargs['iterations']
+            elif isinstance(kwargs['iterations'], int) and kwargs['iterations'] <= 0:
+                raise ValueError("Iterations cannot be less than 1")
+            else:
+                raise TypeError("Iterations must be an integer value")
+        else:
+            iterations = 10
 
         # build string with function and needed variables
         string = ""
+        split_message = kwargs['message'] if 'message' in kwargs else ""
 
         if callable(block):
+            if not split_message:  # if no message was passed in
+                split_message = "Function -> {}".format(block.__name__)
+
             string_builder = ["block("]
             for i in range(len(args)):
                 string_builder.append("args[")
@@ -235,6 +255,12 @@ class PyTimer(object):
             string_builder.append(")")
             string = "".join(string_builder)
         elif isinstance(block, str):
+            if not split_message:  # if not message was passed in
+                if len(block) > 50:  # shorten string if really long
+                    split_message = "String Block -> '{}'...".format(block[0:50])
+                else:
+                    split_message = "String Block -> '{}'".format(block)
+
             string = block
 
         if string != "":
@@ -244,6 +270,7 @@ class PyTimer(object):
                 for j in range(reps):
                     exec(string)
                 self.log()
+            self.split(message=split_message)
 
     def log(self, message=""):
         """
