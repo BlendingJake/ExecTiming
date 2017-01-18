@@ -29,7 +29,7 @@ class PyTimer(object):
     _start_time = 0
     _running_time = 0
     _decorator_reps = 1
-    _decorator_iterations = 1
+    _decorator_iterations = 10
     _paused = False
     _started = False
 
@@ -216,25 +216,7 @@ class PyTimer(object):
         self._confirm_started()
         self.pause()
 
-        if 'reps' in kwargs:
-            if isinstance(kwargs['reps'], int) and kwargs['reps'] >= 1:
-                reps = kwargs['reps']
-            elif isinstance(kwargs['reps'], int) and kwargs['reps'] <= 0:
-                raise ValueError("Reps cannot be less than 1")
-            else:
-                raise TypeError("Reps must be an integer value")
-        else:
-            reps = 10
-
-        if 'iterations' in kwargs:
-            if isinstance(kwargs['iterations'], int) and kwargs['iterations'] >= 1:
-                iterations = kwargs['iterations']
-            elif isinstance(kwargs['iterations'], int) and kwargs['iterations'] <= 0:
-                raise ValueError("Iterations cannot be less than 1")
-            else:
-                raise TypeError("Iterations must be an integer value")
-        else:
-            iterations = 10
+        reps, iterations = self._parse_kwargs_reps_iter(kwargs, 10, 10)
 
         # build string with function and needed variables
         string = ""
@@ -292,6 +274,30 @@ class PyTimer(object):
         self._confirm_started()
         return time() - self._start_time
 
+    @classmethod
+    def _parse_kwargs_reps_iter(self, kwargs, rep_default, iter_default):
+        if 'reps' in kwargs:
+            if isinstance(kwargs['reps'], int) and kwargs['reps'] >= 1:
+                reps = kwargs['reps']
+            elif isinstance(kwargs['reps'], int) and kwargs['reps'] <= 0:
+                raise ValueError("Reps cannot be less than 1")
+            else:
+                raise TypeError("Reps must be an integer value")
+        else:
+            reps = 1
+
+        if 'iterations' in kwargs:
+            if isinstance(kwargs['iterations'], int) and kwargs['iterations'] >= 1:
+                iterations = kwargs['iterations']
+            elif isinstance(kwargs['iterations'], int) and kwargs['iterations'] <= 0:
+                raise ValueError("Iterations cannot be less than 1")
+            else:
+                raise TypeError("Iterations must be an integer value")
+        else:
+            iterations = 10
+
+        return reps, iterations
+
     def pause(self):
         self._confirm_started()
         self._paused = True
@@ -309,14 +315,12 @@ class PyTimer(object):
         self._paused = False
         self._running_time = time()
 
-    def setup_decorator(self, reps=1, iterations=1):
+    def setup_decorator(self, **kwargs):
         """
         Allow decorator to run function for multiple reps and iterations
-        :param reps: (optional) the number of times to run the function before logging time
-        :param iterations: (optional) the number of times to run reps
+        :param kwargs: in (reps, iterations)
         """
-        if reps < 1 or iterations < 1:
-            raise ValueError("Reps and iterations cannot be less than 1")
+        reps, iterations = self._parse_kwargs_reps_iter(kwargs, 1, 10)
 
         self._decorator_iterations = iterations
         self._decorator_reps = reps
