@@ -111,6 +111,35 @@ class PyTimer(object):
 
             return "".join(str_list)
 
+    def _parse_kwargs_reps_iter(self, kwargs: dict, rep_default: int, iter_default: int):
+        """
+        Checks kwargs for reps and iterations and makes sure they are the correct type and >= 1, if either aren't then
+        their default value is returned
+        :param kwargs: dictionary
+        :param rep_default: the value to use for reps if not found in kwargs
+        :param iter_default: the value to use for iterations if not found in kwargs
+        :return: reps and iterations either as their default values or the value found in kwargs
+        """
+        reps = rep_default
+        if 'reps' in kwargs:
+            if isinstance(kwargs['reps'], int) and kwargs['reps'] >= 1:
+                reps = kwargs['reps']
+            elif isinstance(kwargs['reps'], int) and kwargs['reps'] <= 0:
+                self._write("Reps cannot be less than 1\n")
+            else:
+                self._write("Reps must be an integer value\n")
+
+        iterations = iter_default
+        if 'iterations' in kwargs:
+            if isinstance(kwargs['iterations'], int) and kwargs['iterations'] >= 1:
+                iterations = kwargs['iterations']
+            elif isinstance(kwargs['iterations'], int) and kwargs['iterations'] <= 0:
+                self._write("Iterations cannot be less than 1\n")
+            else:
+                self._write("Iterations must be an integer value\n")
+
+        return reps, iterations
+
     def _start(self):
         if self._run:
             self._start_time = time()
@@ -151,6 +180,7 @@ class PyTimer(object):
                 return None
             else:
                 self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
+                return False
 
     def averages(self) -> list:
         """
@@ -195,13 +225,15 @@ class PyTimer(object):
         """
         if self._run:
             av = self.average(i)
-            if av is not None:
+            if av is not None and not isinstance(av, bool):
                 total = 0
                 for val in self._elapsed_times[i]:
                     total += (val - av) ** 2  # Sum from 1->N: (val - av)^2
                 return ((1 / len(self._elapsed_times[i])) * total) ** 0.5  # sqrt((1/N) * total)
-            else:
+            elif av is None:
                 return None
+            else:
+                return False
 
     def deviations(self) -> list:
         """
@@ -247,10 +279,10 @@ class PyTimer(object):
         """
         if self._run:
             dev = self.deviation(i)
-            if dev is not None:
+            if dev is not None and not isinstance(dev, bool):
                 self._write(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
                             ":\n\tStandard Deviation: " + self._format_time(dev) + "\n")
-            else:
+            elif dev is None:
                 self._write(self._format_split(i, True))
 
     def display_deviations(self):
@@ -263,6 +295,8 @@ class PyTimer(object):
                 if devs[i] is not None:
                     self._write(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
                                 ":\n\tStandard Deviation: " + self._format_time(devs[i]))
+                else:  # if empty split than say so
+                    self._write(self._format_split(i, False))
 
             if len(devs) > 0:  # add newline
                 self._write()
@@ -361,35 +395,6 @@ class PyTimer(object):
         if self._run:
             self._confirm_started()
             return time() - self._start_time
-
-    def _parse_kwargs_reps_iter(self, kwargs: dict, rep_default: int, iter_default: int):
-        """
-        Checks kwargs for reps and iterations and makes sure they are the correct type and >= 1, if either aren't then
-        their default value is returned
-        :param kwargs: dictionary
-        :param rep_default: the value to use for reps if not found in kwargs
-        :param iter_default: the value to use for iterations if not found in kwargs
-        :return: reps and iterations either as their default values or the value found in kwargs
-        """
-        reps = rep_default
-        if 'reps' in kwargs:
-            if isinstance(kwargs['reps'], int) and kwargs['reps'] >= 1:
-                reps = kwargs['reps']
-            elif isinstance(kwargs['reps'], int) and kwargs['reps'] <= 0:
-                self._write("Reps cannot be less than 1\n")
-            else:
-                self._write("Reps must be an integer value\n")
-
-        iterations = iter_default
-        if 'iterations' in kwargs:
-            if isinstance(kwargs['iterations'], int) and kwargs['iterations'] >= 1:
-                iterations = kwargs['iterations']
-            elif isinstance(kwargs['iterations'], int) and kwargs['iterations'] <= 0:
-                self._write("Iterations cannot be less than 1\n")
-            else:
-                self._write("Iterations must be an integer value\n")
-
-        return reps, iterations
 
     def pause(self):
         if self._run:
