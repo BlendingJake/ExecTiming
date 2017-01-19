@@ -14,6 +14,7 @@
 # Original Author = Jacob Morris
 
 from time import time
+from datetime import datetime
 
 
 class PyTimer(object):
@@ -25,41 +26,44 @@ class PyTimer(object):
     _elapsed_times = [[]]
     _logged_messages = [[]]
     _split_messages = []
-    _saved_outputs = []
+    _collected_output = []
 
     _start_time = 0
     _running_time = 0
     _decorator_reps = 1
     _decorator_iterations = 10
+    rounding = 4
+
     _paused = False
     _started = False
     _run = True
     _collect_output = False
+    _display = True
 
     def __init__(self, **kwargs):
         if "round" in kwargs:
             if isinstance(kwargs['round'], int) and kwargs['round'] > 0:
                 self.rounding = kwargs['round']
             else:
-                raise TypeError("Round must be an integer value greater than 0")
-        else:
-            self.rounding = 4
+                self._write("Round must be an integer value greater than 0")
 
         if 'run' in kwargs:
             if isinstance(kwargs['run'], bool):
-                self._run= kwargs['run']
+                self._run = kwargs['run']
             else:
-                raise TypeError("Run must be a boolean value")
-        else:
-            self._run = True
+                self._write("Run must be a boolean value")
 
         if 'collect' in kwargs:
             if isinstance(kwargs['collect'], bool):
-                self._collect_output= kwargs['collect']
+                self._collect_output = kwargs['collect']
             else:
-                raise TypeError("Collect must be a boolean value")
-        else:
-            self._collect_output = False
+                self._write("Collect must be a boolean value")
+
+        if 'display' in kwargs:
+            if isinstance(kwargs['display'], bool):
+                self._display = kwargs['display']
+            else:
+                self._write("Display must be a boolean value")
 
     def __str__(self):
         if self._run:
@@ -89,7 +93,7 @@ class PyTimer(object):
 
     def _format_split(self, i: int, newline: bool) -> str:
         if self._run:
-            str_list = ["Split " + str(i + 1) + ":" if i >= len(self._split_messages) or self._split_messages[i] == ""
+            str_list = ["Split " + str(i) + ":" if i >= len(self._split_messages) or self._split_messages[i] == ""
                         else self._split_messages[i] + ":", "\n"]
 
             for j in range(len(self._elapsed_times[i])):  # for every log in split
@@ -119,11 +123,15 @@ class PyTimer(object):
                        self._split_messages[i] != ""
 
     def _write(self, *args):
-        if len(args) == 1 and self._run:
+        if self._display and len(args) == 1 and self._run:
             print(args[0])
-        elif self._run and len(args) == 1 and self._collect_output:  # save output
-            self._saved_outputs.append(args[0])
-            self._saved_outputs.append("\n")
+        elif self._display and len(args) == 0 and self._run:
+            print()
+
+        if self._run and self._collect_output:  # save output
+            if len(args) > 0:
+                self._collected_output.append(args[0])
+            self._collected_output.append("\n")
 
     def average(self, i: int):
         """
@@ -142,7 +150,7 @@ class PyTimer(object):
             elif 0 <= i < len(self._elapsed_times):  # empty split
                 return None
             else:
-                raise IndexError("Invalid split index, must be in [0-{}]".format(len(self._elapsed_times) - 1))
+                self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
 
     def averages(self) -> list:
         """
@@ -167,13 +175,16 @@ class PyTimer(object):
             :param args: (optional) values to be passed into function that is being called
             """
             if self._run:
+                val = None
                 for i in range(self._decorator_iterations):
                     for j in range(self._decorator_reps):
-                        function(*args)
+                        val = function(*args)
                     self.log()
                 self.split("Function -> " + function.__name__)
+
+                return val  # make sure value gets returned
             else:
-                function(*args)
+                return function(*args)
         return wrapper
 
     def deviation(self, i: int):
@@ -223,7 +234,8 @@ class PyTimer(object):
             for i in range(len(av)):
                 if av[i] is not None:
                     self._write(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
-                                ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(av[i]))
+                                ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " +
+                                self._format_time(av[i]))
 
             if len(av) > 0:  # add final newline
                 self._write()
@@ -265,7 +277,7 @@ class PyTimer(object):
             if 0 <= i < len(self._elapsed_times):
                 self._write(self._format_split(i, False))
             else:
-                raise IndexError("Invalid split index, must be in [0-{}]".format(len(self._elapsed_times) - 1))
+                self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
 
     def display_splits(self):
         """
@@ -340,7 +352,7 @@ class PyTimer(object):
                 self._logged_messages[len(self._logged_messages) - 1].append(str(message))
                 self._running_time = time()
             else:
-                raise RuntimeWarning("Timer is currently paused: log had no affect")
+                raise RuntimeWarning("Timer is currently paused: log had no affect\n")
 
     def overall_time(self) -> float:
         """
@@ -350,8 +362,7 @@ class PyTimer(object):
             self._confirm_started()
             return time() - self._start_time
 
-    @classmethod
-    def _parse_kwargs_reps_iter(cls, kwargs: dict, rep_default: int, iter_default: int):
+    def _parse_kwargs_reps_iter(self, kwargs: dict, rep_default: int, iter_default: int):
         """
         Checks kwargs for reps and iterations and makes sure they are the correct type and >= 1, if either aren't then
         their default value is returned
@@ -360,25 +371,23 @@ class PyTimer(object):
         :param iter_default: the value to use for iterations if not found in kwargs
         :return: reps and iterations either as their default values or the value found in kwargs
         """
+        reps = rep_default
         if 'reps' in kwargs:
             if isinstance(kwargs['reps'], int) and kwargs['reps'] >= 1:
                 reps = kwargs['reps']
             elif isinstance(kwargs['reps'], int) and kwargs['reps'] <= 0:
-                raise ValueError("Reps cannot be less than 1")
+                self._write("Reps cannot be less than 1\n")
             else:
-                raise TypeError("Reps must be an integer value")
-        else:
-            reps = rep_default
+                self._write("Reps must be an integer value\n")
 
+        iterations = iter_default
         if 'iterations' in kwargs:
             if isinstance(kwargs['iterations'], int) and kwargs['iterations'] >= 1:
                 iterations = kwargs['iterations']
             elif isinstance(kwargs['iterations'], int) and kwargs['iterations'] <= 0:
-                raise ValueError("Iterations cannot be less than 1")
+                self._write("Iterations cannot be less than 1\n")
             else:
-                raise TypeError("Iterations must be an integer value")
-        else:
-            iterations = iter_default
+                self._write("Iterations must be an integer value\n")
 
         return reps, iterations
 
@@ -429,9 +438,21 @@ class PyTimer(object):
             else:
                 return None
 
-    def write_saved_output(self, fp: str):
-        if not self._collect_output:
-            raise RuntimeError("Timer was not set to save output, to do so: PyTimer(save_output=True)")
+    def write_output(self, fp: str):
+        if not self._collect_output and self._run:
+            self._write("Timer was not set to save output, to do so: PyTimer(save_output=True)\n")
 
         if self._run:
-            pass
+            try:
+                file = open(fp, 'w')
+
+                file.write(datetime.today().strftime("Saved on %B %d, %Y at %I:%M:%S %p\n\n"))
+
+                for line in self._collected_output:
+                    file.write(line)
+                file.close()
+
+                if self._display:
+                    self._write("Saved file successfully\n")
+            except PermissionError:
+                self._write("Could not write to file path '{}'\n".format(fp))
