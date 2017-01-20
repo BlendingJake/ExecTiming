@@ -166,6 +166,7 @@ class PyTimer(object):
                 self._write("Reps cannot be less than 1\n")
             else:
                 self._write("Reps must be an integer value\n")
+            del kwargs['reps']
 
         iterations = iter_default
         if 'iterations' in kwargs:
@@ -175,6 +176,7 @@ class PyTimer(object):
                 self._write("Iterations cannot be less than 1\n")
             else:
                 self._write("Iterations must be an integer value\n")
+            del kwargs['iterations']
 
         return reps, iterations
 
@@ -246,7 +248,7 @@ class PyTimer(object):
                     for j in range(self._decorator_reps):
                         val = function(*args, **kwargs)
                     self.log()
-                self.split("Function -> " + function.__name__)
+                self.split("{} : Decorator ({} reps)".format(function.__name__, self._decorator_reps))
 
                 return val  # make sure value gets returned
             else:
@@ -377,42 +379,34 @@ class PyTimer(object):
             self.pause()
 
             reps, iterations = self._parse_kwargs_reps_iter(kwargs, 10, 10)
-
-            # build string with function and needed variables
-            string = ""
             split_message = kwargs['message'] if 'message' in kwargs else ""
 
             if callable(block):
                 if not split_message:  # if no message was passed in
-                    split_message = "Function -> {}".format(block.__name__)
+                    split_message = "{} : Evaluate Function ({} reps)".format(block.__name__, reps)
 
-                string_builder = ["block("]
-                for i in range(len(args)):
-                    string_builder.append("args[")
-                    string_builder.append(str(i))
-                    string_builder.append("]")
-
-                    if i != len(args) - 1:
-                        string_builder.append(", ")
-                string_builder.append(")")
-                string = "".join(string_builder)
+                self.resume()
+                for i in range(iterations):
+                    for j in range(reps):
+                        block(*args, **kwargs)
+                    self.log()
+                self.split(message=split_message)
             elif isinstance(block, str):
                 if not split_message:  # if not message was passed in
                     if len(block) > 50:  # shorten string if really long
-                        split_message = "String Block -> '{}'...".format(block[0:50])
+                        split_message = "'{}'... : Evaluate String ({} reps)".format(block[0:50], reps)
                     else:
-                        split_message = "String Block -> '{}'".format(block)
+                        split_message = "'{}' : Evaluate String ({} reps)".format(block, reps)
 
-                string = block
-
-            if string != "":
                 self.resume()
-
                 for i in range(iterations):
                     for j in range(reps):
-                        exec(string)
+                        exec(block)
                     self.log()
                 self.split(message=split_message)
+            else:
+                self.resume()
+                self._write("Block is not callable or str\n")
 
     def log(self, message=""):
         """
