@@ -24,6 +24,7 @@ class PyTimer(object):
     """
     seconds = 's'
     milliseconds = "ms"
+    microseconds = "(mu)s"
     nanoseconds = "ns"
 
     _elapsed_times = [[]]
@@ -79,10 +80,10 @@ class PyTimer(object):
                 self._write("Display must be a boolean value")
 
         if 'units' in kwargs:
-            if kwargs['units'] in (PyTimer.seconds, PyTimer.milliseconds, PyTimer.nanoseconds):
+            if kwargs['units'] in (PyTimer.seconds, PyTimer.milliseconds, PyTimer.nanoseconds, PyTimer.microseconds):
                 self._units = kwargs['units']
             else:
-                self._write("Units must be in (PyTimer.seconds, PyTimer.milliseconds, PyTimer.nanoseconds")
+                self._write("Units must be in PyTimer.(seconds, milliseconds, nanoseconds, microseconds)")
 
     def __str__(self):
         """
@@ -112,12 +113,14 @@ class PyTimer(object):
 
     def _format_time(self, t: float) -> str:
         if self._run:
-            if (self._units == "" and t < 0.001) or self._units == PyTimer.milliseconds:
-                return str(round(t * 1000, self.rounding)) + " ms"
-            elif (self._units == "" and t < 0.000000001) or self._units == PyTimer.nanoseconds:
-                return str(round(t * 1000000000, self.rounding)) + " ns"
+            if (self._units == "" and t < 0.00000001) or self._units == PyTimer.nanoseconds:
+                return str(round(t * 1000000000, self.rounding)) + " {}".format(PyTimer.nanoseconds)
+            elif (self._units == "" and t < 0.00001) or self._units == PyTimer.microseconds:
+                return str(round(t * 1000000, self.rounding)) + " {}".format(PyTimer.microseconds)
+            elif (self._units == "" and t < 0.01) or self._units == PyTimer.milliseconds:
+                return str(round(t * 1000, self.rounding)) + " {}".format(PyTimer.milliseconds)
             else:
-                return str(round(t, self.rounding)) + " s"
+                return str(round(t, self.rounding)) + " {}".format(PyTimer.seconds)
 
     def _format_split(self, i: int, newline: bool) -> str:
         """
