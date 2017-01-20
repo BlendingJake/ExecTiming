@@ -16,7 +16,7 @@
 from distutils.core import setup
 
 setup(name="pytimer",
-      version="0.3",
+      version="0.3.1",
       py_modules=["pytimer"],
       author="Jacob Morris",
       author_email="blendingjake@gmail.com")
