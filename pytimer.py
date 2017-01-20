@@ -235,7 +235,7 @@ class PyTimer(object):
         """
         self._confirm_started()
 
-        def wrapper(*args):
+        def wrapper(*args, **kwargs):
             """
             wrapper returned when using as decorator
             :param args: (optional) values to be passed into function that is being called
@@ -244,13 +244,13 @@ class PyTimer(object):
                 val = None
                 for i in range(self._decorator_iterations):
                     for j in range(self._decorator_reps):
-                        val = function(*args)
+                        val = function(*args, **kwargs)
                     self.log()
                 self.split("Function -> " + function.__name__)
 
                 return val  # make sure value gets returned
             else:
-                return function(*args)
+                return function(*args, **kwargs)
         return wrapper
 
     def deviation(self, i: int):
