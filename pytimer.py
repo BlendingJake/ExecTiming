@@ -324,12 +324,13 @@ class PyTimer(object):
 
     def display_splits(self):
         """
-        Display all values for all splits
+        Display all values for all splits unless split is empty
         """
         if self._run:
             self._confirm_started()
             for i in range(len(self._elapsed_times)):
-                self.display_split(i)
+                if len(self._elapsed_times[i]) > 0:  # make sure split is not empty
+                    self.display_split(i)
 
     def evaluate(self, block, *args, **kwargs):
         """
