@@ -479,11 +479,17 @@ class PyTimer(object):
             self._started = True
 
     def times(self, i: int):
+        """
+        Return list of elapsed times for split i
+        :param i: index of split
+        :return: returns list of elapsed times for split i if valid index, otherwise returns None
+        """
         if self._run:
             self._confirm_started()
             if 0 <= i <= len(self._elapsed_times[i]):
                 return self._elapsed_times[i]
             else:
+                self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
                 return None
 
     def write_output(self, fp: str):
