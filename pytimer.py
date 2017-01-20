@@ -13,7 +13,7 @@
 
 # Original Author = Jacob Morris
 
-from time import time
+from time import perf_counter
 from datetime import datetime
 
 
@@ -22,6 +22,8 @@ class PyTimer(object):
     PyTimer is a class for easily timing execution of sections of codes. PyTimer supports splitting
     to allow different segments of code to be timed separately.
     """
+    seconds = 's'
+    milliseconds = "ms"
 
     _elapsed_times = [[]]
     _logged_messages = [[]]
@@ -32,6 +34,7 @@ class PyTimer(object):
     _running_time = 0
     _decorator_reps = 1
     _decorator_iterations = 10
+    _units = ""
     rounding = 4
 
     _paused = False
@@ -40,7 +43,11 @@ class PyTimer(object):
     _collect_output = False
     _display = True
 
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
+        # automatically start unless set not to
+        if len(args) == 0 or (len(args) >= 1 and isinstance(args[0], bool) and args[0]):
+            self.start()
+
         if "round" in kwargs:
             if isinstance(kwargs['round'], int) and kwargs['round'] > 0:
                 self.rounding = kwargs['round']
@@ -65,6 +72,12 @@ class PyTimer(object):
             else:
                 self._write("Display must be a boolean value")
 
+        if 'units' in kwargs:
+            if kwargs['units'] in (PyTimer.seconds, PyTimer.milliseconds):
+                self._units = kwargs['units']
+            else:
+                self._write("Units must be in (PyTimer.seconds, PyTimer.milliseconds")
+
     def __str__(self):
         if self._run:
             # pretty print table
@@ -82,11 +95,11 @@ class PyTimer(object):
         Called by most methods to start out with, confirm that timer has been started
         """
         if not self._started and self._run:
-            self._start()
+            self.start()
 
     def _format_time(self, t: float) -> str:
         if self._run:
-            if t < 0.001:
+            if (self._units == "" and t < 0.001) or self._units == PyTimer.milliseconds:
                 return str(round(t * 1000, self.rounding)) + " ms"
             else:
                 return str(round(t, self.rounding)) + " s"
@@ -140,11 +153,9 @@ class PyTimer(object):
 
         return reps, iterations
 
-    def _start(self):
-        if self._run:
-            self._start_time = time()
-            self._running_time = time()
-            self._started = True
+    @classmethod
+    def _time(cls):
+        return perf_counter()
 
     def _valid_split(self, i: int) -> bool:
         if self._run:
@@ -295,10 +306,8 @@ class PyTimer(object):
                 if devs[i] is not None:
                     self._write(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
                                 ":\n\tStandard Deviation: " + self._format_time(devs[i]))
-                else:  # if empty split than say so
-                    self._write(self._format_split(i, False))
 
-            if len(devs) > 0:  # add newline
+            if len(devs) > 0 and devs[0] is not None:  # add newline
                 self._write()
 
     def display_split(self, i: int):
@@ -382,9 +391,9 @@ class PyTimer(object):
         if self._run:
             self._confirm_started()
             if not self._paused:
-                self._elapsed_times[len(self._elapsed_times) - 1].append(time() - self._running_time)
+                self._elapsed_times[len(self._elapsed_times) - 1].append(self._time() - self._running_time)
                 self._logged_messages[len(self._logged_messages) - 1].append(str(message))
-                self._running_time = time()
+                self._running_time = self._time()
             else:
                 raise RuntimeWarning("Timer is currently paused: log had no affect\n")
 
@@ -394,7 +403,7 @@ class PyTimer(object):
         """
         if self._run:
             self._confirm_started()
-            return time() - self._start_time
+            return self._time() - self._start_time
 
     def pause(self):
         if self._run:
@@ -408,13 +417,13 @@ class PyTimer(object):
             self._split_messages = []
 
         self._paused = False
-        self._start()
+        self.start()
 
     def resume(self):
         if self._run:
             self._confirm_started()
             self._paused = False
-            self._running_time = time()
+            self._running_time = self._time()
 
     def setup_decorator(self, **kwargs):
         """
@@ -433,7 +442,13 @@ class PyTimer(object):
             self._split_messages.append(message)
             self._elapsed_times.append([])
             self._logged_messages.append([])
-            self._running_time = time()
+            self._running_time = self._time()
+
+    def start(self):
+        if self._run:
+            self._start_time = self._time()
+            self._running_time = self._time()
+            self._started = True
 
     def times(self, i: int):
         if self._run:
