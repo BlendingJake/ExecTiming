@@ -372,7 +372,8 @@ class PyTimer(object):
         the entire program.
         :param block: either function or string of code
         :param args: any arguments that needs to be passed into block if block is a function
-        :param kwargs: can be any in (reps, iterations, message) which have their usual definition
+        :param kwargs: can be in (reps, iterations, message) which have their usual definition, or they can be any
+        argument that should be passed into block if block is a function
         """
         if self._run:
             self._confirm_started()
