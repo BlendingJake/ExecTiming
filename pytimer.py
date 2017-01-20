@@ -265,8 +265,10 @@ class PyTimer(object):
                 self._write(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
                             ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(num) +
                             "\n")
-            else:
+            elif num is None:
                 self._write(self._format_split(i, True))
+            else:
+                self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
 
     def display_averages(self):
         """
@@ -280,7 +282,7 @@ class PyTimer(object):
                                 ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " +
                                 self._format_time(av[i]))
 
-            if len(av) > 0:  # add final newline
+            if len(av) > 0 and av[0] is not None:  # add final newline
                 self._write()
 
     def display_deviation(self, i: int):
@@ -295,6 +297,8 @@ class PyTimer(object):
                             ":\n\tStandard Deviation: " + self._format_time(dev) + "\n")
             elif dev is None:
                 self._write(self._format_split(i, True))
+            else:
+                self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
 
     def display_deviations(self):
         """
@@ -317,7 +321,7 @@ class PyTimer(object):
         """
         if self._run:
             self._confirm_started()
-            if 0 <= i < len(self._elapsed_times):
+            if 0 <= i < len(self._elapsed_times) and len(self._elapsed_times[i]) > 0:
                 self._write(self._format_split(i, False))
             else:
                 self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
@@ -399,7 +403,7 @@ class PyTimer(object):
 
     def overall_time(self) -> float:
         """
-        :return: Elapsed time since _start()
+        :return: Elapsed time since start()
         """
         if self._run:
             self._confirm_started()
