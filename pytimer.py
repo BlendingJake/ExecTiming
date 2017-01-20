@@ -24,6 +24,7 @@ class PyTimer(object):
     """
     seconds = 's'
     milliseconds = "ms"
+    nanoseconds = "ns"
 
     _elapsed_times = [[]]
     _logged_messages = [[]]
@@ -44,6 +45,11 @@ class PyTimer(object):
     _display = True
 
     def __init__(self, *args, **kwargs):
+        """
+        Create timer object, start() is called automatically unless args[0] is False
+        :param args: args[0] should be a bool that tells whether or not to automatically
+        :param kwargs: in (round, run, collect, display, units)
+        """
         # automatically start unless set not to
         if len(args) == 0 or (len(args) >= 1 and isinstance(args[0], bool) and args[0]):
             self.start()
@@ -73,18 +79,24 @@ class PyTimer(object):
                 self._write("Display must be a boolean value")
 
         if 'units' in kwargs:
-            if kwargs['units'] in (PyTimer.seconds, PyTimer.milliseconds):
+            if kwargs['units'] in (PyTimer.seconds, PyTimer.milliseconds, PyTimer.nanoseconds):
                 self._units = kwargs['units']
             else:
-                self._write("Units must be in (PyTimer.seconds, PyTimer.milliseconds")
+                self._write("Units must be in (PyTimer.seconds, PyTimer.milliseconds, PyTimer.nanoseconds")
 
     def __str__(self):
+        """
+        Returns string of all values in all splits, if split is empty, than message is displayed
+        :return: string of all values in all splits
+        """
         if self._run:
             # pretty print table
             strings = []
             for i in range(len(self._elapsed_times)):  # for every split
-                if len(self._elapsed_times[i]) > 0:
-                    strings.append(self._format_split(i, True))
+                strings.append(self._format_split(i, True))
+
+            if len(self._elapsed_times) > 0:
+                strings.append("\n")
 
             return "".join(strings)
         else:
@@ -92,7 +104,8 @@ class PyTimer(object):
 
     def _confirm_started(self):
         """
-        Called by most methods to start out with, confirm that timer has been started
+        Called by most methods to start out with, confirm that timer has been started. Can lead to errors, because
+        timer might not be started until log() is called, meaning that the elapsed time is 0
         """
         if not self._started and self._run:
             self.start()
@@ -101,10 +114,19 @@ class PyTimer(object):
         if self._run:
             if (self._units == "" and t < 0.001) or self._units == PyTimer.milliseconds:
                 return str(round(t * 1000, self.rounding)) + " ms"
+            elif (self._units == "" and t < 0.000000001) or self._units == PyTimer.nanoseconds:
+                return str(round(t * 1000000000, self.rounding)) + " ns"
             else:
                 return str(round(t, self.rounding)) + " s"
 
     def _format_split(self, i: int, newline: bool) -> str:
+        """
+        Return string with all values in split. If the split is empty, than split is just listed as empty. Will throw
+        IndexError if i is invalid, so checks should be done outside of here
+        :param i: index of split
+        :param newline: add newline at end
+        :return: string with all values from split, or message if split is empty
+        """
         if self._run:
             str_list = ["Split " + str(i) + ":" if i >= len(self._split_messages) or self._split_messages[i] == ""
                         else self._split_messages[i] + ":", "\n"]
@@ -131,7 +153,7 @@ class PyTimer(object):
         :param kwargs: dictionary
         :param rep_default: the value to use for reps if not found in kwargs
         :param iter_default: the value to use for iterations if not found in kwargs
-        :return: reps and iterations either as their default values or the value found in kwargs
+        :return: reps and iterations are either their default values, or the values found in kwargs
         """
         reps = rep_default
         if 'reps' in kwargs:
@@ -154,7 +176,7 @@ class PyTimer(object):
         return reps, iterations
 
     @classmethod
-    def _time(cls):
+    def _time(cls):  # allow internal timer to be changed easily
         return perf_counter()
 
     def _valid_split(self, i: int) -> bool:
@@ -162,7 +184,7 @@ class PyTimer(object):
             return len(self._split_messages) > 0 and 0 <= i < len(self._split_messages) and \
                        self._split_messages[i] != ""
 
-    def _write(self, *args):
+    def _write(self, *args):  # write to console if _display, add to collected outputs if _collect_output
         if self._display and len(args) == 1 and self._run:
             print(args[0])
         elif self._display and len(args) == 0 and self._run:
@@ -175,9 +197,9 @@ class PyTimer(object):
 
     def average(self, i: int):
         """
-        Calculates average for i'th split
+        Calculates average for split i
         :param i: Index of split to determine average for
-        :return: None if invalid or empty split, otherwise average for split
+        :return: None if empty split, False if invalid index, otherwise average for split
         """
         if self._run:
             self._confirm_started()
@@ -195,7 +217,7 @@ class PyTimer(object):
 
     def averages(self) -> list:
         """
-        Returns averages for every split. If split i has no values, then list[i] is None
+        Returns list of averages for every split
         :return: list of averages, if position i is invalid, then list[i] is None
         """
         if self._run:
@@ -231,8 +253,8 @@ class PyTimer(object):
     def deviation(self, i: int):
         """
         Calculates standard deviation for split i
-        :param i: split position
-        :return: None if i is invalid or empty split, otherwise returns standard deviation of split i
+        :param i: split index
+        :return: None if split i is empty, False if invalid index, otherwise returns standard deviation of split i
         """
         if self._run:
             av = self.average(i)
@@ -248,29 +270,31 @@ class PyTimer(object):
 
     def deviations(self) -> list:
         """
-        Calculates standard deviations for every split. If split is invalid or empty, then value is None for that split
-        :return: list of standard deviations for all splits
+        Calculates standard deviations for every split
+        :return: list of standard deviations for all splits. If split i is empty, than list[i] is None
         """
         if self._run:
             return [self.deviation(i) for i in range(len(self._elapsed_times))]
 
     def display_average(self, i: int):
         """
-        Display average for split i in a formatted view if i is a valid, non-empty split
-        :param i: split position
+        Display average for split i if valid index and split is not empty, otherwise displays appropriate message
+        :param i: split index
         """
         if self._run:
             num = self.average(i)
-            if num is not None:
+            if num is not None and not isinstance(num, bool):
                 self._write(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
                             ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(num) +
                             "\n")
-            else:
+            elif num is None:
                 self._write(self._format_split(i, True))
+            else:
+                self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
 
     def display_averages(self):
         """
-        Display averages for all splits in a formatted view
+        Display averages for all splits unless split i is empty, in which case it is skipped
         """
         if self._run:
             av = self.averages()
@@ -280,13 +304,14 @@ class PyTimer(object):
                                 ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " +
                                 self._format_time(av[i]))
 
-            if len(av) > 0:  # add final newline
+            if len(av) > 0 and av[0] is not None:  # add final newline
                 self._write()
 
     def display_deviation(self, i: int):
         """
-        Display standard deviation for split i in a formatted view if i is a valid, non-empty split
-        :param i: split position
+        Display standard deviation for split i if valid index and split is not empty, otherwise displays appropriate
+        message
+        :param i: split index
         """
         if self._run:
             dev = self.deviation(i)
@@ -295,10 +320,12 @@ class PyTimer(object):
                             ":\n\tStandard Deviation: " + self._format_time(dev) + "\n")
             elif dev is None:
                 self._write(self._format_split(i, True))
+            else:
+                self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
 
     def display_deviations(self):
         """
-        Display standard deviation for all splits in a formatted view
+        Display standard deviation for all splits unless split is empty, in which case that split is skipped
         """
         if self._run:
             devs = self.deviations()
@@ -312,8 +339,8 @@ class PyTimer(object):
 
     def display_split(self, i: int):
         """
-        Display all values in split if i is valid position for split
-        :param i: position of split
+        Display all values in split i if valid index and split is not empty, otherwise displays appropriate message
+        :param i: split index
         """
         if self._run:
             self._confirm_started()
@@ -324,7 +351,7 @@ class PyTimer(object):
 
     def display_splits(self):
         """
-        Display all values for all splits unless split is empty
+        Display all values for all splits unless split is empty, in which case the split is skipped
         """
         if self._run:
             self._confirm_started()
@@ -386,7 +413,7 @@ class PyTimer(object):
 
     def log(self, message=""):
         """
-        Log elapsed time. Will raise RuntimeWarning if timer is currently paused
+        Log elapsed time, log will have no affect if timer is paused
         :param message: optional: store message with the log
         """
         if self._run:
@@ -396,7 +423,7 @@ class PyTimer(object):
                 self._logged_messages[len(self._logged_messages) - 1].append(str(message))
                 self._running_time = self._time()
             else:
-                raise RuntimeWarning("Timer is currently paused: log had no affect\n")
+                self._write("Timer is currently paused: log had no affect\n")
 
     def overall_time(self) -> float:
         """
