@@ -347,6 +347,14 @@ class PyTimer(object):
             if len(devs) > 0 and devs[0] is not None:  # add newline
                 self._write()
 
+    def display_overall_time(self):
+        """
+        Display time since last start() or reset()
+        """
+        if self._run:
+            self._confirm_started()
+            self._write("Overall Time: {}\n".format(self._format_time(self._time() - self._start_time)))
+
     def display_split(self, i: int):
         """
         Display all values in split i if valid index and split is not empty, otherwise displays appropriate message
@@ -435,7 +443,7 @@ class PyTimer(object):
 
     def overall_time(self) -> float:
         """
-        :return: Elapsed time since start()
+        :return: Elapsed time since start() in seconds
         """
         if self._run:
             self._confirm_started()
