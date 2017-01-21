@@ -94,10 +94,10 @@ class PyTimer(object):
             # pretty print table
             strings = []
             for i in range(len(self._elapsed_times)):  # for every split
-                strings.append(self._format_split(i, True))
+                strings.append(self._format_split(i, False))
 
-            if len(self._elapsed_times) > 0:
-                strings.append("\n")
+            # if len(self._elapsed_times) > 0:
+            #     strings.append("\n")
 
             return "".join(strings)
         else:
@@ -143,7 +143,7 @@ class PyTimer(object):
                 str_list.append("\n")
 
             if len(self._elapsed_times[i]) == 0:  # empty split
-                str_list.append("\t-- Empty Split --")
+                str_list.append("\t-- Empty Split --\n")
             if newline:
                 str_list.append("\n")
 
@@ -294,11 +294,11 @@ class PyTimer(object):
         if self._run:
             num = self.average(i)
             if num is not None and not isinstance(num, bool):
-                self._write(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
+                self._write(("Split " + str(i) if not self._valid_split(i) else self._split_messages[i]) +
                             ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(num) +
                             "\n")
             elif num is None:
-                self._write(self._format_split(i, True))
+                self._write(self._format_split(i, False))
             else:
                 self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
 
@@ -310,7 +310,7 @@ class PyTimer(object):
             av = self.averages()
             for i in range(len(av)):
                 if av[i] is not None:
-                    self._write(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
+                    self._write(("Split " + str(i) if not self._valid_split(i) else self._split_messages[i]) +
                                 ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " +
                                 self._format_time(av[i]))
 
@@ -326,10 +326,10 @@ class PyTimer(object):
         if self._run:
             dev = self.deviation(i)
             if dev is not None and not isinstance(dev, bool):
-                self._write(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
+                self._write(("Split " + str(i) if not self._valid_split(i) else self._split_messages[i]) +
                             ":\n\tStandard Deviation: " + self._format_time(dev) + "\n")
             elif dev is None:
-                self._write(self._format_split(i, True))
+                self._write(self._format_split(i, False))
             else:
                 self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
 
@@ -341,7 +341,7 @@ class PyTimer(object):
             devs = self.deviations()
             for i in range(len(devs)):
                 if devs[i] is not None:
-                    self._write(("Split " + str(i + 1) if not self._valid_split(i) else self._split_messages[i]) +
+                    self._write(("Split " + str(i) if not self._valid_split(i) else self._split_messages[i]) +
                                 ":\n\tStandard Deviation: " + self._format_time(devs[i]))
 
             if len(devs) > 0 and devs[0] is not None:  # add newline
