@@ -96,9 +96,6 @@ class PyTimer(object):
             for i in range(len(self._elapsed_times)):  # for every split
                 strings.append(self._format_split(i, False))
 
-            # if len(self._elapsed_times) > 0:
-            #     strings.append("\n")
-
             return "".join(strings)
         else:
             return ""
@@ -349,7 +346,7 @@ class PyTimer(object):
 
     def display_overall_time(self):
         """
-        Display time since last start() or reset()
+        Display time since last start() or reset(). This time includes that time taken to execute PyTimer method calls
         """
         if self._run:
             self._confirm_started()
@@ -443,7 +440,7 @@ class PyTimer(object):
 
     def overall_time(self) -> float:
         """
-        :return: Elapsed time since start() in seconds
+        :return: Elapsed time since start() in seconds, includes time to execute PyTimer method calls
         """
         if self._run:
             self._confirm_started()
