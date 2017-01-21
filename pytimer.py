@@ -24,7 +24,7 @@ class PyTimer(object):
     """
     seconds = 's'
     milliseconds = "ms"
-    microseconds = "(mu)s"
+    microseconds = "us"
     nanoseconds = "ns"
 
     _elapsed_times = [[]]
@@ -243,12 +243,17 @@ class PyTimer(object):
             :param args: (optional) values to be passed into function that is being called
             """
             if self._run:
+                arguments = [str(i) for i in args]
+                for i in kwargs.keys():
+                    arguments.append("{}={}".format(i, kwargs[i]))
+
                 val = None
                 for i in range(self._decorator_iterations):
                     for j in range(self._decorator_reps):
                         val = function(*args, **kwargs)
                     self.log()
-                self.split("{} : Decorator ({} reps)".format(function.__name__, self._decorator_reps))
+                self.split("{}({}) - Decorator ({} reps)".format(function.__name__, ", ".join(arguments),
+                                                                 self._decorator_reps))
 
                 return val  # make sure value gets returned
             else:
@@ -384,7 +389,12 @@ class PyTimer(object):
 
             if callable(block):
                 if not split_message:  # if no message was passed in
-                    split_message = "{} : Evaluate Function ({} reps)".format(block.__name__, reps)
+                    arguments = [str(i) for i in args]
+                    for i in kwargs.keys():
+                        arguments.append("{}={}".format(i, kwargs[i]))
+
+                    split_message = "{}({}) - Evaluate Function ({} reps)".format(block.__name__, ", ".join(arguments),
+                                                                                  reps)
 
                 self.resume()
                 for i in range(iterations):
@@ -395,9 +405,9 @@ class PyTimer(object):
             elif isinstance(block, str):
                 if not split_message:  # if not message was passed in
                     if len(block) > 50:  # shorten string if really long
-                        split_message = "'{}'... : Evaluate String ({} reps)".format(block[0:50], reps)
+                        split_message = "'{}'... - Evaluate String ({} reps)".format(block[0:50], reps)
                     else:
-                        split_message = "'{}' : Evaluate String ({} reps)".format(block, reps)
+                        split_message = "'{}' - Evaluate String ({} reps)".format(block, reps)
 
                 self.resume()
                 for i in range(iterations):
