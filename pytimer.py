@@ -15,6 +15,7 @@
 
 from time import perf_counter
 from datetime import datetime
+from os.path import sep as os_file_sep
 
 
 class PyTimer(object):
@@ -505,14 +506,28 @@ class PyTimer(object):
                 self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
                 return None
 
-    def write_output(self, fp: str):
+    def write_output(self, folder_path: str, basename: str, file_per_run=False):
+        """
+        Write all collected output to a file, assuming that _collect_output was set in constructor. File is either
+        written to folder_path + basename if file_per_run is false or folder_path + basename + date_time where
+        date_time is formatted "-day-month-year-hours-minutes-seconds". All files are written to .txt format
+        :param folder_path: Path of folder to write to
+        :param basename: Name of file
+        :param file_per_run: Create a new file with every run
+        """
+
         if not self._collect_output and self._run:
             self._write("Timer was not set to save output, to do so: PyTimer(save_output=True)\n")
 
-        if self._run:
+        if self._collect_output and self._run:
+            if file_per_run:  # determine file path, if file_per_run, then use date and time on top of basename
+                time_name = datetime.today().strftime("-%d-%m-%Y-%H-%M-%S")
+                fp = folder_path + os_file_sep + basename + time_name + ".txt"
+            else:
+                fp = folder_path + os_file_sep + basename + ".txt"
+
             try:
                 file = open(fp, 'w')
-
                 file.write(datetime.today().strftime("Saved on %B %d, %Y at %I:%M:%S %p\n\n"))
 
                 for line in self._collected_output:
@@ -520,6 +535,6 @@ class PyTimer(object):
                 file.close()
 
                 if self._display:
-                    self._write("Saved file successfully\n")
+                    self._write("File written to '{}'\n".format(fp))
             except PermissionError:
                 self._write("Could not write to file path '{}'\n".format(fp))
