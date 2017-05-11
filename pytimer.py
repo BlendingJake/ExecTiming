@@ -46,11 +46,70 @@ class PyTimer(object):
     _collect_output = False
     _display = True
 
+    # static methods
+    @staticmethod
+    def _time():  # allow internal timer to be changed easily
+        return perf_counter()
+
+    @staticmethod
+    def _convert_time(t: float, units="") -> [float, str]:
+        if (units == "" and t < 0.00000001) or units == PyTimer.nanoseconds:
+            return [t * 1000000000, PyTimer.nanoseconds]
+        elif (units == "" and t < 0.00001) or units == PyTimer.microseconds:
+            return [t * 1000000, PyTimer.microseconds]
+        elif (units == "" and t < 0.01) or units == PyTimer.milliseconds:
+            return [t * 1000, PyTimer.milliseconds]
+        else:
+            return [t, PyTimer.seconds]
+
+    @staticmethod
+    def time(block, *args, **kwargs) -> float:
+        """
+        A static method that allows timing a function or string of code without creating a PyTimer object
+        :param block: either a callable, or a string
+        :param args: any positional arguments to be passed into block if it is a function
+        :param kwargs: any keyword arguments to be passed into block if it is a function, or reps/iterations. Where
+        reps and iterations have their standard definitions.
+        :return: The amount time it takes to call/evaluate block iterations times, averaged over reps runs. If block
+        is neither a callable or a string, then None is returned
+        """
+        reps = 1
+        if 'reps' in kwargs and isinstance(kwargs['reps'], int) and kwargs['reps'] > 0:
+            reps = kwargs['reps']
+            del kwargs['reps']
+
+        iterations = 10
+        if 'iterations' in kwargs and isinstance(kwargs['iterations'], int) and kwargs['iterations'] > 0:
+            iterations = kwargs['iterations']
+            del kwargs['iterations']
+
+        running_total = 0
+        is_function = callable(block)  # check if function or string outside of loop to help get a more accurate time
+
+        # if block is neither a string or a callable
+        if not is_function and not isinstance(block, str):
+            return None
+
+        for rep in range(reps):
+            start_time = PyTimer._time()
+            for iteration in range(iterations):
+                if is_function:
+                    block(*args, **kwargs)
+                else:
+                    eval(block)
+            running_total += PyTimer._time() - start_time
+
+        average = running_total / reps
+        return average
+
     def __init__(self, *args, **kwargs):
         """
         Create timer object, start() is called automatically unless args[0] is False
         :param args: args[0] should be a bool that tells whether or not to automatically
-        :param kwargs: in (round, run, collect, display, units)
+        :param kwargs: in (round, run, collect, display, units), where round is the number of decimal places to round
+        to, run is whether or not to start the timer as soon as it is created, collect tells whether or not to collect
+        output statements so they can later be written to a file, display tells whether or not to display output, 
+        and finally, units tells what units to use when displaying times
         """
         # automatically start unless set not to
         if len(args) == 0 or (len(args) >= 1 and isinstance(args[0], bool) and args[0]):
@@ -111,14 +170,8 @@ class PyTimer(object):
 
     def _format_time(self, t: float) -> str:
         if self._run:
-            if (self._units == "" and t < 0.00000001) or self._units == PyTimer.nanoseconds:
-                return str(round(t * 1000000000, self.rounding)) + " {}".format(PyTimer.nanoseconds)
-            elif (self._units == "" and t < 0.00001) or self._units == PyTimer.microseconds:
-                return str(round(t * 1000000, self.rounding)) + " {}".format(PyTimer.microseconds)
-            elif (self._units == "" and t < 0.01) or self._units == PyTimer.milliseconds:
-                return str(round(t * 1000, self.rounding)) + " {}".format(PyTimer.milliseconds)
-            else:
-                return str(round(t, self.rounding)) + " {}".format(PyTimer.seconds)
+            converted = PyTimer._convert_time(t, self._units)
+            return str(round(converted[0], self.rounding)) + " {}".format(converted[1])
 
     def _format_split(self, i: int, newline: bool) -> str:
         """
@@ -178,10 +231,6 @@ class PyTimer(object):
 
         return reps, iterations
 
-    @classmethod
-    def _time(cls):  # allow internal timer to be changed easily
-        return perf_counter()
-
     def _valid_split(self, i: int) -> bool:
         if self._run:
             return len(self._split_messages) > 0 and 0 <= i < len(self._split_messages) and \
@@ -226,11 +275,11 @@ class PyTimer(object):
         if self._run:
             return [self.average(i) for i in range(len(self._elapsed_times))]
 
-    def decorator(self, function: callable) -> callable:
+    def decorator(self, func: callable) -> callable:
         """
         Returns a decorator so that functions can be timed with having to use evaluate, but functions can't take any
         parameters
-        :param function: takes a function as a parameter
+        :param func: takes a function as a parameter
         :return: a wrapper function for use as a decorator
         """
         self._confirm_started()
@@ -248,14 +297,14 @@ class PyTimer(object):
                 val = None
                 for i in range(self._decorator_iterations):
                     for j in range(self._decorator_reps):
-                        val = function(*args, **kwargs)
+                        val = func(*args, **kwargs)
                     self.log()
-                self.split("{}({}) - Decorator ({} reps)".format(function.__name__, ", ".join(arguments),
+                self.split("{}({}) - Decorator ({} reps)".format(func.__name__, ", ".join(arguments),
                                                                  self._decorator_reps))
 
                 return val  # make sure value gets returned
             else:
-                return function(*args, **kwargs)
+                return func(*args, **kwargs)
         return wrapper
 
     def deviation(self, i: int):
