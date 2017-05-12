@@ -497,7 +497,7 @@ class PyTimer(object):
                 self.split(message=split_message)
             else:
                 self.resume()
-                self._write("Block is not callable or str\n")
+                self._write("Block is not callable or a string\n")
 
     def log(self, message=""):
         """
@@ -589,7 +589,6 @@ class PyTimer(object):
         :param basename: Name of file
         :param file_per_run: Create a new file with every run
         """
-
         if not self._collect_output and self._run:
             self._write("Timer was not set to save output, to do so: PyTimer(save_output=True)\n")
 
