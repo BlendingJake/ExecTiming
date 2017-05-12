@@ -46,6 +46,8 @@ class PyTimer(object):
     _collect_output = False
     _display = True
 
+    _last_time = 0
+
     # static methods
     @staticmethod
     def _time():  # allow internal timer to be changed easily
@@ -63,7 +65,30 @@ class PyTimer(object):
             return [t, PyTimer.seconds]
 
     @staticmethod
-    def time(block, *args, **kwargs) -> float:
+    def elapsed(message="", **kwargs):
+        """
+        Allows the elapsed time to be easily checked using repeated calls to this. There must be an initial call
+        that gets the start time.
+        :param message: a message to be displayed along with the elapsed time
+        :param kwargs: the elapsed time in seconds can be returned instead of displayed using display=False
+        :return: 
+        """
+        if PyTimer._last_time == 0:
+            PyTimer._last_time = PyTimer._time()
+        else:
+            dif = PyTimer._time() - PyTimer._last_time
+
+            if 'display' not in kwargs or ('display' in kwargs and kwargs['display']):
+                converted = PyTimer._convert_time(dif)
+                print(("{}: ".format(message) if message else "") + "{} {}".format(round(converted[0], 5),
+                                                                                   converted[1]))
+                PyTimer._last_time = PyTimer._time()  # update last
+            else:
+                PyTimer._last_time = PyTimer._time()  # update last
+                return dif
+
+    @staticmethod
+    def time(block, *args, **kwargs):
         """
         A static method that allows timing a function or string of code without creating a PyTimer object
         :param block: either a callable, or a string
