@@ -46,15 +46,27 @@ class PyTimer(object):
     _collect_output = False
     _display = True
 
-    _last_time = 0
+    _last_time = 0  # used for static elapsed method to know what time was on last call
 
     # static methods
     @staticmethod
     def _time():  # allow internal timer to be changed easily
+        """
+        Get the current time, currently perf_counter() because of its accuracy and that fact it returns values in 
+        fractional seconds
+        :return: a relative time, only good for telling elapsed times, in seconds
+        """
         return perf_counter()
 
     @staticmethod
     def _convert_time(t: float, units="") -> [float, str]:
+        """
+        Internal method. Will determine the units if they are not specified and the value is within a certain range,
+        or will convert to whatever units are specified.
+        :param t: the time in seconds
+        :param units: the units to convert to, automatically determined if none are specified
+        :return: a list of [converted time, units], units are returned in case they weren't specified.
+        """
         if (units == "" and t < 0.00000001) or units == PyTimer.nanoseconds:
             return [t * 1000000000, PyTimer.nanoseconds]
         elif (units == "" and t < 0.00001) or units == PyTimer.microseconds:
@@ -88,7 +100,7 @@ class PyTimer(object):
                 return dif
 
     @staticmethod
-    def time(block, *args, **kwargs):
+    def time_block(block, *args, **kwargs):
         """
         A static method that allows timing a function or string of code without creating a PyTimer object
         :param block: either a callable, or a string
@@ -194,6 +206,11 @@ class PyTimer(object):
             self.start()
 
     def _format_time(self, t: float) -> str:
+        """
+        Format time into strings with correct units
+        :param t: the time in seconds to be formatted
+        :return: the string of a time converted to the correct units and then the abbreviation for those units
+        """
         if self._run:
             converted = PyTimer._convert_time(t, self._units)
             return str(round(converted[0], self.rounding)) + " {}".format(converted[1])
@@ -229,7 +246,7 @@ class PyTimer(object):
         """
         Checks kwargs for reps and iterations and makes sure they are the correct type and >= 1, if either aren't then
         their default value is returned
-        :param kwargs: dictionary
+        :param kwargs: dictionary of values
         :param rep_default: the value to use for reps if not found in kwargs
         :param iter_default: the value to use for iterations if not found in kwargs
         :return: reps and iterations are either their default values, or the values found in kwargs
@@ -257,11 +274,21 @@ class PyTimer(object):
         return reps, iterations
 
     def _valid_split(self, i: int) -> bool:
+        """
+        Determines if the split index is valid
+        :param i: split index to check 
+        :return: true or false depending on whether or not the split is valid
+        """
         if self._run:
             return len(self._split_messages) > 0 and 0 <= i < len(self._split_messages) and \
                        self._split_messages[i] != ""
 
     def _write(self, *args):  # write to console if _display, add to collected outputs if _collect_output
+        """
+        Write to either the console if _display, add output to collected outputs if _collect_output, write newline
+        if now parameters are provided
+        :param args: string to be written, only 0 or 1 is accepted
+        """
         if self._display and len(args) == 1 and self._run:
             print(args[0])
         elif self._display and len(args) == 0 and self._run:
@@ -299,6 +326,8 @@ class PyTimer(object):
         """
         if self._run:
             return [self.average(i) for i in range(len(self._elapsed_times))]
+        else:
+            return []
 
     def decorator(self, func: callable) -> callable:
         """
@@ -449,7 +478,7 @@ class PyTimer(object):
                 if len(self._elapsed_times[i]) > 0:  # make sure split is not empty
                     self.display_split(i)
 
-    def evaluate(self, block, *args, **kwargs):
+    def time_it(self, block, *args, **kwargs):
         """
         Evaluates a string of code or a function and times how long it takes for each iteration. If block is a function,
         then parameters can be passed to it like so: evaluate(bar, "something", 12, iterations=100) ->
