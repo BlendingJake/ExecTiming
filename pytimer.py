@@ -199,7 +199,7 @@ class PyTimer(object):
 
     def _confirm_started(self):
         """
-        Called by most methods to start out with, confirm that timer has been started. Can lead to errors, because
+        Called by most methods to start out with, confirm that timer has been started. Can lead to issues, because
         timer might not be started until log() is called, meaning that the elapsed time is 0
         """
         if not self._started and self._run:
@@ -305,7 +305,7 @@ class PyTimer(object):
         :param i: Index of split to determine average for
         :return: None if empty split, False if invalid index, otherwise average for split
         """
-        if self._run:
+        if self._run and not self._paused:
             self._confirm_started()
 
             if 0 <= i < len(self._elapsed_times) and len(self._elapsed_times[i]) > 0:
@@ -318,14 +318,19 @@ class PyTimer(object):
             else:
                 self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
                 return False
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def averages(self) -> list:
         """
         Returns list of averages for every split
         :return: list of averages, if position i is invalid, then list[i] is None
         """
-        if self._run:
+        if self._run and not self._paused:
             return [self.average(i) for i in range(len(self._elapsed_times))]
+        elif self._paused:
+            self._write("Timer is currently paused\n")
+            return []
         else:
             return []
 
@@ -343,7 +348,7 @@ class PyTimer(object):
             wrapper returned when using as decorator
             :param args: (optional) values to be passed into function that is being called
             """
-            if self._run:
+            if self._run and not self._paused:  # if the timer is not running, then just call the function
                 arguments = [str(i) for i in args]
                 for i in kwargs.keys():
                     arguments.append("{}={}".format(i, kwargs[i]))
@@ -357,6 +362,8 @@ class PyTimer(object):
                                                                  self._decorator_reps))
 
                 return val  # make sure value gets returned
+            elif self._paused:
+                self._write("Timer is currently paused\n")
             else:
                 return func(*args, **kwargs)
         return wrapper
@@ -367,7 +374,7 @@ class PyTimer(object):
         :param i: split index
         :return: None if split i is empty, False if invalid index, otherwise returns standard deviation of split i
         """
-        if self._run:
+        if self._run and not self._paused:
             av = self.average(i)
             if av is not None and not isinstance(av, bool):
                 total = 0
@@ -378,21 +385,25 @@ class PyTimer(object):
                 return None
             else:
                 return False
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def deviations(self) -> list:
         """
         Calculates standard deviations for every split
         :return: list of standard deviations for all splits. If split i is empty, than list[i] is None
         """
-        if self._run:
+        if self._run and not self._paused:
             return [self.deviation(i) for i in range(len(self._elapsed_times))]
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def display_average(self, i: int):
         """
         Display average for split i if valid index and split is not empty, otherwise displays appropriate message
         :param i: split index
         """
-        if self._run:
+        if self._run and not self._paused:
             num = self.average(i)
             if num is not None and not isinstance(num, bool):
                 self._write(("Split " + str(i) if not self._valid_split(i) else self._split_messages[i]) +
@@ -402,12 +413,14 @@ class PyTimer(object):
                 self._write(self._format_split(i, False))
             else:
                 self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def display_averages(self):
         """
         Display averages for all splits unless split i is empty, in which case it is skipped
         """
-        if self._run:
+        if self._run and not self._paused:
             av = self.averages()
             for i in range(len(av)):
                 if av[i] is not None:
@@ -417,6 +430,8 @@ class PyTimer(object):
 
             if len(av) > 0 and av[0] is not None:  # add final newline
                 self._write()
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def display_deviation(self, i: int):
         """
@@ -424,7 +439,7 @@ class PyTimer(object):
         message
         :param i: split index
         """
-        if self._run:
+        if self._run and not self._paused:
             dev = self.deviation(i)
             if dev is not None and not isinstance(dev, bool):
                 self._write(("Split " + str(i) if not self._valid_split(i) else self._split_messages[i]) +
@@ -433,12 +448,14 @@ class PyTimer(object):
                 self._write(self._format_split(i, False))
             else:
                 self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def display_deviations(self):
         """
         Display standard deviation for all splits unless split is empty, in which case that split is skipped
         """
-        if self._run:
+        if self._run and not self._paused:
             devs = self.deviations()
             for i in range(len(devs)):
                 if devs[i] is not None:
@@ -447,36 +464,44 @@ class PyTimer(object):
 
             if len(devs) > 0 and devs[0] is not None:  # add newline
                 self._write()
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def display_overall_time(self):
         """
         Display time since last start() or reset(). This time includes that time taken to execute PyTimer method calls
         """
-        if self._run:
+        if self._run and not self._paused:
             self._confirm_started()
             self._write("Overall Time: {}\n".format(self._format_time(self._time() - self._start_time)))
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def display_split(self, i: int):
         """
         Display all values in split i if valid index and split is not empty, otherwise displays appropriate message
         :param i: split index
         """
-        if self._run:
+        if self._run and not self._paused:
             self._confirm_started()
             if 0 <= i < len(self._elapsed_times) and len(self._elapsed_times[i]) > 0:
                 self._write(self._format_split(i, False))
             else:
                 self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def display_splits(self):
         """
         Display all values for all splits unless split is empty, in which case the split is skipped
         """
-        if self._run:
+        if self._run and not self._paused:
             self._confirm_started()
             for i in range(len(self._elapsed_times)):
                 if len(self._elapsed_times[i]) > 0:  # make sure split is not empty
                     self.display_split(i)
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def time_it(self, block, *args, **kwargs):
         """
@@ -489,7 +514,7 @@ class PyTimer(object):
         :param kwargs: can be in (reps, iterations, message) which have their usual definition, or they can be any
         argument that should be passed into block if block is a function
         """
-        if self._run:
+        if self._run and not self._paused:
             self._confirm_started()
             self.pause()
 
@@ -527,13 +552,15 @@ class PyTimer(object):
             else:
                 self.resume()
                 self._write("Block is not callable or a string\n")
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def log(self, message=""):
         """
         Log elapsed time, log will have no affect if timer is paused
         :param message: optional: store message with the log
         """
-        if self._run:
+        if self._run and not self._paused:
             self._confirm_started()
             if not self._paused:
                 self._elapsed_times[len(self._elapsed_times) - 1].append(self._time() - self._running_time)
@@ -541,21 +568,35 @@ class PyTimer(object):
                 self._running_time = self._time()
             else:
                 self._write("Timer is currently paused: log had no affect\n")
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def overall_time(self) -> float:
         """
         :return: Elapsed time since start() in seconds, includes time to execute PyTimer method calls
         """
-        if self._run:
+        if self._run and not self._paused:
             self._confirm_started()
             return self._time() - self._start_time
+        elif self._paused:
+            self._write("Timer is currently paused\n")
+            return 0
 
     def pause(self):
+        """
+        Pause the timer, meaning no actions can be performed, allows portions of code to be skipped
+        """
         if self._run:
-            self._confirm_started()
-            self._paused = True
+            if not self._paused:
+                self._confirm_started()
+                self._paused = True
+            else:
+                self._write("Timer is already paused\n")
 
     def reset(self):
+        """
+        Clear the timer back to its defaults
+        """
         if self._run:
             self._elapsed_times = [[]]
             self._logged_messages = [[]]
@@ -565,10 +606,17 @@ class PyTimer(object):
         self.start()
 
     def resume(self):
+        """
+        Resume the timer from being paused, updates the internal clock to the current time
+        """
         if self._run:
             self._confirm_started()
-            self._paused = False
-            self._running_time = self._time()
+
+            if self._paused:
+                self._paused = False
+                self._running_time = self._time()
+            else:
+                self._write("Timer is not currently paused\n")
 
     def setup_decorator(self, **kwargs):
         """
@@ -582,12 +630,14 @@ class PyTimer(object):
             self._decorator_reps = reps
 
     def split(self, message=""):
-        if self._run:
+        if self._run and not self._paused:
             self._confirm_started()
             self._split_messages.append(message)
             self._elapsed_times.append([])
             self._logged_messages.append([])
             self._running_time = self._time()
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def start(self):
         if self._run:
@@ -601,13 +651,15 @@ class PyTimer(object):
         :param i: index of split
         :return: returns list of elapsed times for split i if valid index, otherwise returns None
         """
-        if self._run:
+        if self._run and not self._paused:
             self._confirm_started()
             if 0 <= i <= len(self._elapsed_times[i]):
                 return self._elapsed_times[i]
             else:
                 self._write("Invalid split index, must be in [0-{}]\n".format(len(self._elapsed_times) - 1))
                 return None
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def write_output(self, folder_path: str, basename: str, file_per_run=False):
         """
@@ -618,10 +670,10 @@ class PyTimer(object):
         :param basename: Name of file
         :param file_per_run: Create a new file with every run
         """
-        if not self._collect_output and self._run:
+        if not self._collect_output and self._run and not self._paused:
             self._write("Timer was not set to save output, to do so: PyTimer(save_output=True)\n")
 
-        if self._collect_output and self._run:
+        if self._collect_output and self._run and not self._paused:
             if file_per_run:  # determine file path, if file_per_run, then use date and time on top of basename
                 time_name = datetime.today().strftime("-%d-%m-%Y-%H-%M-%S")
                 fp = folder_path + os_file_sep + basename + time_name + ".txt"
@@ -640,3 +692,5 @@ class PyTimer(object):
                     self._write("File written to '{}'\n".format(fp))
             except PermissionError:
                 self._write("Could not write to file path '{}'\n".format(fp))
+        elif self._paused:
+            self._write("Timer is currently paused\n")
