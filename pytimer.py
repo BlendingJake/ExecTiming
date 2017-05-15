@@ -28,24 +28,7 @@ class PyTimer(object):
     microseconds = "us"
     nanoseconds = "ns"
 
-    _elapsed_times = [[]]
-    _logged_messages = [[]]
-    _split_messages = []
-    _collected_output = []
-
-    _start_time = 0
-    _running_time = 0
-    _decorator_reps = 1
-    _decorator_iterations = 10
-    _units = ""
     rounding = 4
-
-    _paused = False
-    _started = False
-    _run = True
-    _collect_output = False
-    _display = True
-
     _last_time = 0  # used for static elapsed method to know what time was on last call
 
     # static methods
@@ -148,6 +131,24 @@ class PyTimer(object):
         output statements so they can later be written to a file, display tells whether or not to display output, 
         and finally, units tells what units to use when displaying times
         """
+
+        self._elapsed_times = [[]]
+        self._logged_messages = [[]]
+        self._split_messages = []
+        self._collected_output = []
+
+        self._start_time = 0
+        self._running_time = 0
+        self._decorator_reps = 1
+        self._decorator_iterations = 10
+        self._units = ""
+
+        self._paused = False
+        self._started = False
+        self._run = True
+        self._collect_output = False
+        self. _display = True
+
         # automatically start unless set not to
         if len(args) == 0 or (len(args) >= 1 and isinstance(args[0], bool) and args[0]):
             self.start()
