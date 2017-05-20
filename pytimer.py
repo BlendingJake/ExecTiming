@@ -83,6 +83,19 @@ class PyTimer(object):
                 return dif
 
     @staticmethod
+    def _plurify(word: str, count: int) -> str:
+        """
+        Make a word plural by adding an "s" unless the count is only 1
+        :param word: the string containing the word to make plural
+        :param count: the count
+        :return: The plural version of word unless count is 1
+        """
+        if count == 1:
+            return word
+        else:
+            return word + "s"
+
+    @staticmethod
     def time_it(block, *args, **kwargs):
         """
         A static method that allows timing a function or string of code without creating a PyTimer object
@@ -359,8 +372,9 @@ class PyTimer(object):
                     for j in range(self._decorator_reps):
                         val = func(*args, **kwargs)
                     self.log()
-                self.split("{}({}) - Decorator ({} reps)".format(func.__name__, ", ".join(arguments),
-                                                                 self._decorator_reps))
+                self.split("{}({}) - Decorator ({} {})".format(func.__name__, ", ".join(arguments),
+                                                               self._decorator_reps,
+                                                               PyTimer._plurify("rep", self._decorator_reps)))
 
                 return val  # make sure value gets returned
             elif self._paused:
@@ -408,7 +422,8 @@ class PyTimer(object):
             num = self.average(i)
             if num is not None and not isinstance(num, bool):
                 self._write(("Split " + str(i) if not self._valid_split(i) else self._split_messages[i]) +
-                            ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " + self._format_time(num) +
+                            ":\n\tAverage (" + str(len(self._elapsed_times[i])) +
+                            PyTimer._plurify(" run", len(self._elapsed_times[i])) + "): " + self._format_time(num) +
                             "\n")
             elif num is None:
                 self._write(self._format_split(i, False))
@@ -426,7 +441,8 @@ class PyTimer(object):
             for i in range(len(av)):
                 if av[i] is not None:
                     self._write(("Split " + str(i) if not self._valid_split(i) else self._split_messages[i]) +
-                                ":\n\tAverage (" + str(len(self._elapsed_times[i])) + " runs): " +
+                                ":\n\tAverage (" + str(len(self._elapsed_times[i])) +
+                                PyTimer._plurify(" run", len(self._elapsed_times[i])) + "): " +
                                 self._format_time(av[i]))
 
             if len(av) > 0 and av[0] is not None:  # add final newline
@@ -501,58 +517,6 @@ class PyTimer(object):
             for i in range(len(self._elapsed_times)):
                 if len(self._elapsed_times[i]) > 0:  # make sure split is not empty
                     self.display_split(i)
-        elif self._paused:
-            self._write("Timer is currently paused\n")
-
-    def time(self, block, *args, **kwargs):
-        """
-        Times a string of code or a function and times how long it takes for each iteration. If block is a function,
-        then parameters can be passed to it like so: time(bar, "something", 12, iterations=100) ->
-        bar("something", 12). No error checking is done, meaning any error that is raised within block will crash
-        the entire program.
-        :param block: either function or string of code
-        :param args: any arguments that needs to be passed into block if block is a function
-        :param kwargs: can be in (reps, iterations, message) which have their usual definition, or they can be any
-        argument that should be passed into block if block is a function
-        """
-        if self._run and not self._paused:
-            self._confirm_started()
-            self.pause()
-
-            reps, iterations = self._parse_kwargs_reps_iter(kwargs, 10, 10)
-            split_message = kwargs['message'] if 'message' in kwargs else ""
-
-            if callable(block):
-                if not split_message:  # if no message was passed in
-                    arguments = [str(i) for i in args]
-                    for i in kwargs.keys():
-                        arguments.append("{}={}".format(i, kwargs[i]))
-
-                    split_message = "{}({}) - Evaluate Function ({} reps)".format(block.__name__, ", ".join(arguments),
-                                                                                  reps)
-
-                self.resume()
-                for i in range(iterations):
-                    for j in range(reps):
-                        block(*args, **kwargs)
-                    self.log()
-                self.split(message=split_message)
-            elif isinstance(block, str):
-                if not split_message:  # if not message was passed in
-                    if len(block) > 50:  # shorten string if really long
-                        split_message = "'{}'... - Evaluate String ({} reps)".format(block[0:50], reps)
-                    else:
-                        split_message = "'{}' - Evaluate String ({} reps)".format(block, reps)
-
-                self.resume()
-                for i in range(iterations):
-                    for j in range(reps):
-                        exec(block)
-                    self.log()
-                self.split(message=split_message)
-            else:
-                self.resume()
-                self._write("Block is not callable or a string\n")
         elif self._paused:
             self._write("Timer is currently paused\n")
 
@@ -645,6 +609,60 @@ class PyTimer(object):
             self._start_time = self._time()
             self._running_time = self._time()
             self._started = True
+
+    def time(self, block, *args, **kwargs):
+        """
+        Times a string of code or a function and times how long it takes for each iteration. If block is a function,
+        then parameters can be passed to it like so: time(bar, "something", 12, iterations=100) ->
+        bar("something", 12). No error checking is done, meaning any error that is raised within block will crash
+        the entire program.
+        :param block: either function or string of code
+        :param args: any arguments that needs to be passed into block if block is a function
+        :param kwargs: can be in (reps, iterations, message) which have their usual definition, or they can be any
+        argument that should be passed into block if block is a function
+        """
+        if self._run and not self._paused:
+            self._confirm_started()
+            self.pause()
+
+            reps, iterations = self._parse_kwargs_reps_iter(kwargs, 10, 10)
+            split_message = kwargs['message'] if 'message' in kwargs else ""
+
+            if callable(block):
+                if not split_message:  # if no message was passed in
+                    arguments = [str(i) for i in args]
+                    for i in kwargs.keys():
+                        arguments.append("{}={}".format(i, kwargs[i]))
+
+                    split_message = "{}({}) - Evaluate Function ({} {})".format(block.__name__, ", ".join(arguments),
+                                                                                reps, PyTimer._plurify("rep", reps))
+
+                self.resume()
+                for i in range(iterations):
+                    for j in range(reps):
+                        block(*args, **kwargs)
+                    self.log()
+                self.split(message=split_message)
+            elif isinstance(block, str):
+                if not split_message:  # if not message was passed in
+                    if len(block) > 50:  # shorten string if really long
+                        split_message = "'{}'... - Evaluate String ({} {})".format(block[0:50], reps,
+                                                                                   PyTimer._plurify("rep", reps))
+                    else:
+                        split_message = "'{}' - Evaluate String ({} {})".format(block, reps,
+                                                                                PyTimer._plurify("rep", reps))
+
+                self.resume()
+                for i in range(iterations):
+                    for j in range(reps):
+                        exec(block)
+                    self.log()
+                self.split(message=split_message)
+            else:
+                self.resume()
+                self._write("Block is not callable or a string\n")
+        elif self._paused:
+            self._write("Timer is currently paused\n")
 
     def times(self, i: int):
         """
