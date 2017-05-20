@@ -83,7 +83,7 @@ class PyTimer(object):
                 return dif
 
     @staticmethod
-    def time_block(block, *args, **kwargs):
+    def time_it(block, *args, **kwargs):
         """
         A static method that allows timing a function or string of code without creating a PyTimer object
         :param block: either a callable, or a string
@@ -504,10 +504,10 @@ class PyTimer(object):
         elif self._paused:
             self._write("Timer is currently paused\n")
 
-    def time_it(self, block, *args, **kwargs):
+    def time(self, block, *args, **kwargs):
         """
-        Evaluates a string of code or a function and times how long it takes for each iteration. If block is a function,
-        then parameters can be passed to it like so: evaluate(bar, "something", 12, iterations=100) ->
+        Times a string of code or a function and times how long it takes for each iteration. If block is a function,
+        then parameters can be passed to it like so: time(bar, "something", 12, iterations=100) ->
         bar("something", 12). No error checking is done, meaning any error that is raised within block will crash
         the entire program.
         :param block: either function or string of code
