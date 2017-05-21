@@ -42,7 +42,7 @@ class PyTimer(object):
         return perf_counter()
 
     @staticmethod
-    def _convert_time(t: float, units="") -> [float, str]:
+    def _convert_time(t: float, units=None) -> [float, str]:
         """
         Internal method. Will determine the units if they are not specified and the value is within a certain range,
         or will convert to whatever units are specified.
@@ -50,22 +50,22 @@ class PyTimer(object):
         :param units: the units to convert to, automatically determined if none are specified
         :return: a list of [converted time, units], units are returned in case they weren't specified.
         """
-        if (units == "" and t < 0.00000001) or units == PyTimer.nanoseconds:
+        if (units is None and t < 0.00000001) or units == PyTimer.nanoseconds:
             return [t * 1000000000, PyTimer.nanoseconds]
-        elif (units == "" and t < 0.00001) or units == PyTimer.microseconds:
+        elif (units is None and t < 0.00001) or units == PyTimer.microseconds:
             return [t * 1000000, PyTimer.microseconds]
-        elif (units == "" and t < 0.01) or units == PyTimer.milliseconds:
+        elif (units is None and t < 0.01) or units == PyTimer.milliseconds:
             return [t * 1000, PyTimer.milliseconds]
         else:
             return [t, PyTimer.seconds]
 
     @staticmethod
-    def elapsed(message="", **kwargs):
+    def elapsed(**kwargs):
         """
         Allows the elapsed time to be easily checked using repeated calls to this. There must be an initial call
         that gets the start time.
-        :param message: a message to be displayed along with the elapsed time
-        :param kwargs: the elapsed time in seconds can be returned instead of displayed using display=False
+        :param kwargs: the elapsed time in seconds can be returned instead of displayed using display=False, a message
+        can be displayed as well using message=""
         :return: 
         """
         if PyTimer._last_time == 0:
@@ -74,7 +74,9 @@ class PyTimer(object):
             dif = PyTimer._time() - PyTimer._last_time
 
             if 'display' not in kwargs or ('display' in kwargs and kwargs['display']):
+                message = str(kwargs['message']) if 'message' in kwargs else ""
                 converted = PyTimer._convert_time(dif)
+
                 print(("{}: ".format(message) if message else "") + "{} {}".format(round(converted[0], 5),
                                                                                    converted[1]))
                 PyTimer._last_time = PyTimer._time()  # update last
@@ -116,6 +118,16 @@ class PyTimer(object):
             iterations = kwargs['iterations']
             del kwargs['iterations']
 
+        display = True
+        if 'display' in kwargs and isinstance(kwargs['display'], bool):
+            display = kwargs['display']
+            del kwargs['display']
+
+        message=""
+        if 'message' in kwargs and isinstance(kwargs['message'], str):
+            message = kwargs['message']
+            del kwargs['message']
+
         running_total = 0
         is_function = callable(block)  # check if function or string outside of loop to help get a more accurate time
 
@@ -129,22 +141,28 @@ class PyTimer(object):
                 if is_function:
                     block(*args, **kwargs)
                 else:
-                    eval(block)
+                    exec(block)
             running_total += PyTimer._time() - start_time
 
         average = running_total / reps
-        return average
 
-    def __init__(self, *args, **kwargs):
+        if display:
+            converted = PyTimer._convert_time(average)
+
+            print(("{}: ".format(message) if message else "") + "{} {}".format(round(converted[0], 5),
+                                                                               converted[1]))
+        else:
+            return average
+
+    def __init__(self, start=True, **kwargs):
         """
         Create timer object, start() is called automatically unless args[0] is False
-        :param args: args[0] should be a bool that tells whether or not to automatically
+        :param start: whether or not to call start and begin timing
         :param kwargs: in (round, run, collect, display, units), where round is the number of decimal places to round
         to, run is whether or not to start the timer as soon as it is created, collect tells whether or not to collect
         output statements so they can later be written to a file, display tells whether or not to display output, 
         and finally, units tells what units to use when displaying times
         """
-
         self._elapsed_times = [[]]
         self._logged_messages = [[]]
         self._split_messages = []
@@ -154,7 +172,7 @@ class PyTimer(object):
         self._running_time = 0
         self._decorator_reps = 1
         self._decorator_iterations = 10
-        self._units = ""
+        self._units = None
 
         self._paused = False
         self._started = False
@@ -163,7 +181,7 @@ class PyTimer(object):
         self. _display = True
 
         # automatically start unless set not to
-        if len(args) == 0 or (len(args) >= 1 and isinstance(args[0], bool) and args[0]):
+        if start:
             self.start()
 
         if "round" in kwargs:
