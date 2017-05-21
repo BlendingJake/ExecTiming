@@ -123,7 +123,7 @@ class PyTimer(object):
             display = kwargs['display']
             del kwargs['display']
 
-        message=""
+        message = ""
         if 'message' in kwargs and isinstance(kwargs['message'], str):
             message = kwargs['message']
             del kwargs['message']
