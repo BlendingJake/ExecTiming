@@ -154,14 +154,15 @@ class PyTimer(object):
         else:
             return average
 
-    def __init__(self, start=True, **kwargs):
+    def __init__(self, start=True, rounding=4, run=True, collect=False, display=True, units=None):
         """
         Create timer object, start() is called automatically unless args[0] is False
-        :param start: whether or not to call start and begin timing
-        :param kwargs: in (round, run, collect, display, units), where round is the number of decimal places to round
-        to, run is whether or not to start the timer as soon as it is created, collect tells whether or not to collect
-        output statements so they can later be written to a file, display tells whether or not to display output, 
-        and finally, units tells what units to use when displaying times
+        :param start: whether or not to call start and begin timing   
+        :param rounding: the number of digits to round displayed values to
+        :param run: whether or not any operations have an affect
+        :param collect: collect any displayed output so it can be saved to a file later
+        :param display: display output in the console
+        :param units: what unit to use when displaying values, if None, then pick unit based on what the value is
         """
         self._elapsed_times = [[]]
         self._logged_messages = [[]]
@@ -172,47 +173,18 @@ class PyTimer(object):
         self._running_time = 0
         self._decorator_reps = 1
         self._decorator_iterations = 10
-        self._units = None
+        self._units = units
 
         self._paused = False
         self._started = False
-        self._run = True
-        self._collect_output = False
-        self. _display = True
+        self.rounding = rounding
+        self._run = run
+        self._collect_output = collect
+        self. _display = display
 
         # automatically start unless set not to
         if start:
             self.start()
-
-        if "round" in kwargs:
-            if isinstance(kwargs['round'], int) and kwargs['round'] > 0:
-                self.rounding = kwargs['round']
-            else:
-                self._write("Round must be an integer value greater than 0")
-
-        if 'run' in kwargs:
-            if isinstance(kwargs['run'], bool):
-                self._run = kwargs['run']
-            else:
-                self._write("Run must be a boolean value")
-
-        if 'collect' in kwargs:
-            if isinstance(kwargs['collect'], bool):
-                self._collect_output = kwargs['collect']
-            else:
-                self._write("Collect must be a boolean value")
-
-        if 'display' in kwargs:
-            if isinstance(kwargs['display'], bool):
-                self._display = kwargs['display']
-            else:
-                self._write("Display must be a boolean value")
-
-        if 'units' in kwargs:
-            if kwargs['units'] in (PyTimer.seconds, PyTimer.milliseconds, PyTimer.nanoseconds, PyTimer.microseconds):
-                self._units = kwargs['units']
-            else:
-                self._write("Units must be in PyTimer.(seconds, milliseconds, nanoseconds, microseconds)")
 
     def __str__(self):
         """
@@ -274,37 +246,6 @@ class PyTimer(object):
 
             return "".join(str_list)
 
-    def _parse_kwargs_reps_iter(self, kwargs: dict, rep_default: int, iter_default: int):
-        """
-        Checks kwargs for reps and iterations and makes sure they are the correct type and >= 1, if either aren't then
-        their default value is returned
-        :param kwargs: dictionary of values
-        :param rep_default: the value to use for reps if not found in kwargs
-        :param iter_default: the value to use for iterations if not found in kwargs
-        :return: reps and iterations are either their default values, or the values found in kwargs
-        """
-        reps = rep_default
-        if 'reps' in kwargs:
-            if isinstance(kwargs['reps'], int) and kwargs['reps'] >= 1:
-                reps = kwargs['reps']
-            elif isinstance(kwargs['reps'], int) and kwargs['reps'] <= 0:
-                self._write("Reps cannot be less than 1\n")
-            else:
-                self._write("Reps must be an integer value\n")
-            del kwargs['reps']
-
-        iterations = iter_default
-        if 'iterations' in kwargs:
-            if isinstance(kwargs['iterations'], int) and kwargs['iterations'] >= 1:
-                iterations = kwargs['iterations']
-            elif isinstance(kwargs['iterations'], int) and kwargs['iterations'] <= 0:
-                self._write("Iterations cannot be less than 1\n")
-            else:
-                self._write("Iterations must be an integer value\n")
-            del kwargs['iterations']
-
-        return reps, iterations
-
     def _valid_split(self, i: int) -> bool:
         """
         Determines if the split index is valid
@@ -315,20 +256,17 @@ class PyTimer(object):
             return len(self._split_messages) > 0 and 0 <= i < len(self._split_messages) and \
                        self._split_messages[i] != ""
 
-    def _write(self, *args):  # write to console if _display, add to collected outputs if _collect_output
+    def _write(self, line="\n"):  # write to console if _display, add to collected outputs if _collect_output
         """
         Write to either the console if _display, add output to collected outputs if _collect_output, write newline
         if now parameters are provided
-        :param args: string to be written, only 0 or 1 is accepted
+        :param line: string to be written
         """
-        if self._display and len(args) == 1 and self._run:
-            print(args[0])
-        elif self._display and len(args) == 0 and self._run:
-            print()
+        if self._display and self._run:
+            print(line)
 
         if self._run and self._collect_output:  # save output
-            if len(args) > 0:
-                self._collected_output.append(args[0])
+            self._collected_output.append(line)
             self._collected_output.append("\n")
 
     def average(self, i: int):
@@ -601,14 +539,13 @@ class PyTimer(object):
             else:
                 self._write("Timer is not currently paused\n")
 
-    def setup_decorator(self, **kwargs):
+    def setup_decorator(self, reps=1, iterations=10):
         """
         Allow decorator to run function for multiple reps and iterations
-        :param kwargs: in (reps, iterations)
+        :param reps: number of times to run the function before logging the time
+        :param iterations: number of times to calculate the time
         """
         if self._run:
-            reps, iterations = self._parse_kwargs_reps_iter(kwargs, 1, 10)
-
             self._decorator_iterations = iterations
             self._decorator_reps = reps
 
@@ -628,7 +565,7 @@ class PyTimer(object):
             self._running_time = self._time()
             self._started = True
 
-    def time(self, block, *args, **kwargs):
+    def time(self, block, *args, reps=10, iterations=10, **kwargs):
         """
         Times a string of code or a function and times how long it takes for each iteration. If block is a function,
         then parameters can be passed to it like so: time(bar, "something", 12, iterations=100) ->
@@ -636,6 +573,8 @@ class PyTimer(object):
         the entire program.
         :param block: either function or string of code
         :param args: any arguments that needs to be passed into block if block is a function
+        :param reps: number of reps to run the block before log is called
+        :param iterations: number of times to run rep number of times
         :param kwargs: can be in (reps, iterations, message) which have their usual definition, or they can be any
         argument that should be passed into block if block is a function
         """
@@ -643,7 +582,6 @@ class PyTimer(object):
             self._confirm_started()
             self.pause()
 
-            reps, iterations = self._parse_kwargs_reps_iter(kwargs, 10, 10)
             split_message = kwargs['message'] if 'message' in kwargs else ""
 
             if callable(block):
