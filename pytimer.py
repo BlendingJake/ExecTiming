@@ -60,21 +60,21 @@ class PyTimer(object):
             return [t, PyTimer.seconds]
 
     @staticmethod
-    def elapsed(**kwargs):
+    def elapsed(display=True, message=""):
         """
         Allows the elapsed time to be easily checked using repeated calls to this. There must be an initial call
         that gets the start time.
-        :param kwargs: the elapsed time in seconds can be returned instead of displayed using display=False, a message
-        can be displayed as well using message=""
-        :return: 
+        :param display: whether to display the elapsed time, or to return it as a value
+        :param message: if display==True, this message will be attached with the output that is displayed
+        :return: the elapsed time if display==False
         """
         if PyTimer._last_time == 0:
             PyTimer._last_time = PyTimer._time()
         else:
             dif = PyTimer._time() - PyTimer._last_time
 
-            if 'display' not in kwargs or ('display' in kwargs and kwargs['display']):
-                message = str(kwargs['message']) if 'message' in kwargs else ""
+            if display:
+                message = message
                 converted = PyTimer._convert_time(dif)
 
                 print(("{}: ".format(message) if message else "") + "{} {}".format(round(converted[0], 5),
@@ -92,42 +92,22 @@ class PyTimer(object):
         :param count: the count
         :return: The plural version of word unless count is 1
         """
-        if count == 1:
-            return word
-        else:
-            return word + "s"
+        return word if count == 1 else word + "s"
 
     @staticmethod
-    def time_it(block, *args, **kwargs):
+    def time_it(block, *args, reps=1, iterations=10, display=True, message="", **kwargs):
         """
         A static method that allows timing a function or string of code without creating a PyTimer object
         :param block: either a callable, or a string
         :param args: any positional arguments to be passed into block if it is a function
-        :param kwargs: any keyword arguments to be passed into block if it is a function, or reps/iterations. Where
-        reps and iterations have their standard definitions.
-        :return: The amount time it takes to call/evaluate block iterations times, averaged over reps runs. If block
-        is neither a callable or a string, then None is returned
+        :param reps: the number of reps for each iteration
+        :param iterations: the number of iterations to average together
+        :param display: if True, then display the calculated time, else, return the value
+        :param message: if display==True, then this message will be displayed with the calculated value
+        :param kwargs: any keyword arguments to be passed into block if it is a function
+        :return: If block is not callable or a string, then None is returned. If display==True, then nothing is
+        returned, else if display==False, the calculated time is returned
         """
-        reps = 1
-        if 'reps' in kwargs and isinstance(kwargs['reps'], int) and kwargs['reps'] > 0:
-            reps = kwargs['reps']
-            del kwargs['reps']
-
-        iterations = 10
-        if 'iterations' in kwargs and isinstance(kwargs['iterations'], int) and kwargs['iterations'] > 0:
-            iterations = kwargs['iterations']
-            del kwargs['iterations']
-
-        display = True
-        if 'display' in kwargs and isinstance(kwargs['display'], bool):
-            display = kwargs['display']
-            del kwargs['display']
-
-        message = ""
-        if 'message' in kwargs and isinstance(kwargs['message'], str):
-            message = kwargs['message']
-            del kwargs['message']
-
         running_total = 0
         is_function = callable(block)  # check if function or string outside of loop to help get a more accurate time
 
@@ -565,7 +545,7 @@ class PyTimer(object):
             self._running_time = self._time()
             self._started = True
 
-    def time(self, block, *args, reps=10, iterations=10, **kwargs):
+    def time(self, block, *args, reps=10, iterations=10, split_message="", **kwargs):
         """
         Times a string of code or a function and times how long it takes for each iteration. If block is a function,
         then parameters can be passed to it like so: time(bar, "something", 12, iterations=100) ->
@@ -575,14 +555,12 @@ class PyTimer(object):
         :param args: any arguments that needs to be passed into block if block is a function
         :param reps: number of reps to run the block before log is called
         :param iterations: number of times to run rep number of times
-        :param kwargs: can be in (reps, iterations, message) which have their usual definition, or they can be any
-        argument that should be passed into block if block is a function
+        :param split_message: the message that will be recorded with this split
+        :param kwargs: keyword arguments that will be passed into block if it is a function
         """
         if self._run and not self._paused:
             self._confirm_started()
             self.pause()
-
-            split_message = kwargs['message'] if 'message' in kwargs else ""
 
             if callable(block):
                 if not split_message:  # if no message was passed in
