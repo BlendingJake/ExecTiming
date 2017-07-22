@@ -296,7 +296,8 @@ class PyTimer(object):
         def wrapper(*args, **kwargs):
             """
             wrapper returned when using as decorator
-            :param args: (optional) values to be passed into function that is being called
+            :param args: values to be passed into function that is being called
+            :param kwargs: keyword values to be passed into the function that is being called
             """
             if self._run and not self._paused:  # if the timer is not running, then just call the function
                 arguments = [str(i) for i in args]
