@@ -95,7 +95,7 @@ class PyTimer(object):
         return word if count == 1 else word + "s"
 
     @staticmethod
-    def time_it(block, *args, reps=1, iterations=10, display=True, message="", **kwargs):
+    def time_it(block, *args, reps=1, iterations=10, display=True, message="", callable_args=False, **kwargs):
         """
         A static method that allows timing a function or string of code without creating a PyTimer object
         :param block: either a callable, or a string
@@ -104,11 +104,14 @@ class PyTimer(object):
         :param iterations: the number of iterations to average together
         :param display: if True, then display the calculated time, else, return the value
         :param message: if display==True, then this message will be displayed with the calculated value
+        :param callable_args: whether to look through args and kwargs and see if any parameters are callable. If so,
+        replace their value with the value returned from calling them. Only works if block is callable.
         :param kwargs: any keyword arguments to be passed into block if it is a function
         :return: If block is not callable or a string, then None is returned. If display==True, then nothing is
         returned, else if display==False, the calculated time is returned
         """
         running_total = 0
+        args = list(args)
         is_function = callable(block)  # check if function or string outside of loop to help get a more accurate time
 
         # if block is neither a string or a callable
@@ -119,6 +122,17 @@ class PyTimer(object):
             start_time = PyTimer._time()
             for iteration in range(iterations):
                 if is_function:
+                    if callable_args:
+                        # get values for any argument that is callable
+                        for i in range(len(args)):
+                            if callable(args[i]):
+                                args[i] = args[i]()
+
+                        # get values for any keyword argument that is callable
+                        for key in kwargs:
+                            if callable(kwargs[key]):
+                                kwargs[key] = kwargs[key]()
+
                     block(*args, **kwargs)
                 else:
                     exec(block)
@@ -546,7 +560,7 @@ class PyTimer(object):
             self._running_time = self._time()
             self._started = True
 
-    def time(self, block, *args, reps=10, iterations=10, split_message="", **kwargs):
+    def time(self, block, *args, reps=10, iterations=10, split_message="", callable_args=False, **kwargs):
         """
         Times a string of code or a function and times how long it takes for each iteration. If block is a function,
         then parameters can be passed to it like so: time(bar, "something", 12, iterations=100) ->
@@ -557,8 +571,13 @@ class PyTimer(object):
         :param reps: number of reps to run the block before log is called
         :param iterations: number of times to run rep number of times
         :param split_message: the message that will be recorded with this split
+        :param callable_args: whether to look through args and kwargs and see if any parameters are callable. If so,
+        replace their value with the value returned from calling them. Only works if block is callable.
+        :param kwargs: any keyword arguments to be passed into block if it is a function
         :param kwargs: keyword arguments that will be passed into block if it is a function
         """
+        args = list(args)
+
         if self._run and not self._paused:
             self._confirm_started()
             self.pause()
@@ -575,7 +594,21 @@ class PyTimer(object):
                 self.resume()
                 for i in range(iterations):
                     for j in range(reps):
+                        if callable_args:
+                            self.pause()
+                            # get values for any argument that is callable
+                            for i in range(len(args)):
+                                if callable(args[i]):
+                                    args[i] = args[i]()
+
+                            # get values for any keyword argument that is callable
+                            for key in kwargs:
+                                if callable(kwargs[key]):
+                                    kwargs[key] = kwargs[key]()
+
+                            self.resume()
                         block(*args, **kwargs)
+
                     self.log()
                 self.split(message=split_message)
             elif isinstance(block, str):
