@@ -42,6 +42,21 @@ class PyTimer(object):
         return perf_counter()
 
     @staticmethod
+    def _call_args(args: list, kwargs: dict):
+        """
+        See if any arguments are callable, if they are, call them and replace them with their value
+        :param args: a list of positional arguments
+        :param kwargs: a dict of keyword arguments
+        """
+        for i in range(len(args)):
+            if callable(args[i]):
+                args[i] = args[i]()
+
+        for key in kwargs:
+            if callable(kwargs[key]):
+                kwargs[key] = kwargs[key]()
+
+    @staticmethod
     def _convert_time(t: float, units=None) -> [float, str]:
         """
         Internal method. Will determine the units if they are not specified and the value is within a certain range,
@@ -95,13 +110,13 @@ class PyTimer(object):
         return word if count == 1 else word + "s"
 
     @staticmethod
-    def time_it(block, *args, reps=1, iterations=10, display=True, message="", callable_args=False, **kwargs):
+    def time_it(block, *args, reps=1, runs_per_rep=10, display=True, message="", callable_args=False, **kwargs):
         """
         A static method that allows timing a function or string of code without creating a PyTimer object
         :param block: either a callable, or a string
         :param args: any positional arguments to be passed into block if it is a function
-        :param reps: the number of reps for each iteration
-        :param iterations: the number of iterations to average together
+        :param reps: the number of times to average the elapsed time 
+        :param runs_per_rep: the number of runs for every rep. Useful if block is generally called multiple times
         :param display: if True, then display the calculated time, else, return the value
         :param message: if display==True, then this message will be displayed with the calculated value
         :param callable_args: whether to look through args and kwargs and see if any parameters are callable. If so,
@@ -120,18 +135,10 @@ class PyTimer(object):
 
         for rep in range(reps):
             start_time = PyTimer._time()
-            for iteration in range(iterations):
+            for run in range(runs_per_rep):
                 if is_function:
                     if callable_args:
-                        # get values for any argument that is callable
-                        for i in range(len(args)):
-                            if callable(args[i]):
-                                args[i] = args[i]()
-
-                        # get values for any keyword argument that is callable
-                        for key in kwargs:
-                            if callable(kwargs[key]):
-                                kwargs[key] = kwargs[key]()
+                        PyTimer._call_args(args, kwargs)
 
                     block(*args, **kwargs)
                 else:
@@ -166,7 +173,7 @@ class PyTimer(object):
         self._start_time = 0
         self._running_time = 0
         self._decorator_reps = 1
-        self._decorator_iterations = 10
+        self._decorator_runs_per_rep = 10
         self._units = units
 
         self._paused = False
@@ -319,13 +326,14 @@ class PyTimer(object):
                     arguments.append("{}={}".format(i, kwargs[i]))
 
                 val = None
-                for i in range(self._decorator_iterations):
-                    for j in range(self._decorator_reps):
+                for i in range(self._decorator_reps):
+                    for j in range(self._decorator_runs_per_rep):
                         val = func(*args, **kwargs)
                     self.log()
                 self.split("{}({}) - Decorator ({} {})".format(func.__name__, ", ".join(arguments),
-                                                               self._decorator_reps,
-                                                               PyTimer._plurify("rep", self._decorator_reps)))
+                                                               self._decorator_runs_per_rep,
+                                                               PyTimer._plurify("run", self._decorator_runs_per_rep) +
+                                                               "_per_rep"))
 
                 return val  # make sure value gets returned
             elif self._paused:
@@ -534,14 +542,14 @@ class PyTimer(object):
             else:
                 self._write("Timer is not currently paused\n")
 
-    def setup_decorator(self, reps=1, iterations=10):
+    def setup_decorator(self, reps=1, runs_per_rep=10):
         """
-        Allow decorator to run function for multiple reps and iterations
-        :param reps: number of times to run the function before logging the time
-        :param iterations: number of times to calculate the time
+        Allow decorator to run function for multiples runs and reps
+        :param reps: the number of times to average the elapsed time 
+        :param runs_per_rep: the number of runs for every rep. Useful if block is generally called multiple times
         """
         if self._run:
-            self._decorator_iterations = iterations
+            self._decorator_runs_per_rep = runs_per_rep
             self._decorator_reps = reps
 
     def split(self, message=""):
@@ -560,16 +568,16 @@ class PyTimer(object):
             self._running_time = self._time()
             self._started = True
 
-    def time(self, block, *args, reps=10, iterations=10, split_message="", callable_args=False, **kwargs):
+    def time(self, block, *args, reps=10, runs_per_rep=10, split_message="", callable_args=False, **kwargs):
         """
         Times a string of code or a function and times how long it takes for each iteration. If block is a function,
-        then parameters can be passed to it like so: time(bar, "something", 12, iterations=100) ->
+        then parameters can be passed to it like so: time(bar, "something", 12, runs_per_rep=100) ->
         bar("something", 12). No error checking is done, meaning any error that is raised within block will crash
         the entire program.
         :param block: either function or string of code
         :param args: any arguments that needs to be passed into block if block is a function
-        :param reps: number of reps to run the block before log is called
-        :param iterations: number of times to run rep number of times
+        :param reps: the number of times to average the elapsed time 
+        :param runs_per_rep: the number of runs for every rep. Useful if block is generally called multiple times
         :param split_message: the message that will be recorded with this split
         :param callable_args: whether to look through args and kwargs and see if any parameters are callable. If so,
         replace their value with the value returned from calling them. Only works if block is callable.
@@ -589,24 +597,18 @@ class PyTimer(object):
                         arguments.append("{}={}".format(i, kwargs[i]))
 
                     split_message = "{}({}) - Evaluate Function ({} {})".format(block.__name__, ", ".join(arguments),
-                                                                                reps, PyTimer._plurify("rep", reps))
+                                                                                runs_per_rep,
+                                                                                PyTimer._plurify("run", runs_per_rep) +
+                                                                                "_per_rep")
 
                 self.resume()
-                for i in range(iterations):
-                    for j in range(reps):
+                for i in range(reps):
+                    for j in range(runs_per_rep):
                         if callable_args:
                             self.pause()
-                            # get values for any argument that is callable
-                            for i in range(len(args)):
-                                if callable(args[i]):
-                                    args[i] = args[i]()
-
-                            # get values for any keyword argument that is callable
-                            for key in kwargs:
-                                if callable(kwargs[key]):
-                                    kwargs[key] = kwargs[key]()
-
+                            self._call_args(args, kwargs)
                             self.resume()
+
                         block(*args, **kwargs)
 
                     self.log()
@@ -614,15 +616,19 @@ class PyTimer(object):
             elif isinstance(block, str):
                 if not split_message:  # if not message was passed in
                     if len(block) > 50:  # shorten string if really long
-                        split_message = "'{}'... - Evaluate String ({} {})".format(block[0:50], reps,
-                                                                                   PyTimer._plurify("rep", reps))
+                        split_message = "'{}'... - Evaluate String ({} {})".format(block[0:50], runs_per_rep,
+                                                                                   PyTimer._plurify("run",
+                                                                                                    runs_per_rep) +
+                                                                                   "_per_rep"
+                                                                                   )
                     else:
-                        split_message = "'{}' - Evaluate String ({} {})".format(block, reps,
-                                                                                PyTimer._plurify("rep", reps))
+                        split_message = "'{}' - Evaluate String ({} {})".format(block, runs_per_rep,
+                                                                                PyTimer._plurify("run", runs_per_rep) +
+                                                                                "_per_rep")
 
                 self.resume()
-                for i in range(iterations):
-                    for j in range(reps):
+                for i in range(reps):
+                    for j in range(runs_per_rep):
                         exec(block)
                     self.log()
                 self.split(message=split_message)
