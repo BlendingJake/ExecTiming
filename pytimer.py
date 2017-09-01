@@ -592,9 +592,9 @@ class PyTimer(object):
 
             if callable(block):
                 if not split_message:  # if no message was passed in
-                    arguments = [i.__name__ if callable(i) and callable_args else str(i) for i in args]
+                    arguments = [i.__name__ + "()" if callable(i) and callable_args else str(i) for i in args]
                     for key in kwargs:
-                        value = kwargs[key].__name__ if callable(kwargs[key]) and callable_args else kwargs[key]
+                        value = kwargs[key].__name__ + "()" if callable(kwargs[key]) and callable_args else kwargs[key]
                         arguments.append("{}={}".format(key, value))
 
                     split_message = "{}({}) - Evaluate Function ({} {})".format(block.__name__, ", ".join(arguments),
