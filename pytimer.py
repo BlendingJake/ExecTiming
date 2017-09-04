@@ -172,8 +172,6 @@ class PyTimer(object):
 
         self._start_time = 0
         self._running_time = 0
-        self._decorator_reps = 1
-        self._decorator_runs_per_rep = 10
         self._units = units
 
         self._paused = False
@@ -305,42 +303,64 @@ class PyTimer(object):
         else:
             return []
 
-    def decorator(self, func: callable) -> callable:
+    def decorator(self, reps=1, runs_per_rep=1, callable_args=False) -> callable:
         """
-        Returns a decorator so that functions can be timed with having to use evaluate, but functions can't take any
-        parameters
-        :param func: takes a function as a parameter
-        :return: a wrapper function for use as a decorator
+        Function used as a decorator for timing functions. Decorator can have arguments, which allows the reps, 
+        runs_per_rep and whether the args are callable to be set for each function this is being used on.
+        To use: @timer.decorator(reps=10, callable_args=True), where timer is a PyTimer instance.
+        :param reps: the number of times to average the elapsed time 
+        :param runs_per_rep: the number of runs for every rep. Useful if block is generally called multiple times
+        :param callable_args: whether to look through args and kwargs that are being passed to the function being
+        decorated and see if any parameters are callable. If so, replace their value with the value returned from 
+        calling them.
+        :return: a function that takes the function being decorated as a parameter
         """
         self._confirm_started()
 
-        def wrapper(*args, **kwargs):
+        def decorator_inner(func: callable) -> callable:
             """
-            wrapper returned when using as decorator
-            :param args: values to be passed into function that is being called
-            :param kwargs: keyword values to be passed into the function that is being called
+            the inner function for the decorator that takes the function being decorated as a parameter
+            :param func: the function being decorated
+            :return: a wrapper function that when called will call the function being decorated
             """
-            if self._run and not self._paused:  # if the timer is not running, then just call the function
-                arguments = [str(i) for i in args]
-                for i in kwargs.keys():
-                    arguments.append("{}={}".format(i, kwargs[i]))
 
-                val = None
-                for i in range(self._decorator_reps):
-                    for j in range(self._decorator_runs_per_rep):
-                        val = func(*args, **kwargs)
-                    self.log()
-                self.split("{}({}) - Decorator ({} {})".format(func.__name__, ", ".join(arguments),
-                                                               self._decorator_runs_per_rep,
-                                                               PyTimer._plurify("run", self._decorator_runs_per_rep) +
-                                                               "_per_rep"))
+            def wrapper(*args, **kwargs) -> callable:
+                """
+                wrapper returned when using as decorator
+                :param args: values to be passed into function that is being called
+                :param kwargs: keyword values to be passed into the function that is being called
+                """
+                nonlocal reps, runs_per_rep, callable_args, self
 
-                return val  # make sure value gets returned
-            elif self._paused:
-                self._write("Timer is currently paused\n")
-            else:
-                return func(*args, **kwargs)
-        return wrapper
+                if self._run and not self._paused:  # if the timer is not running, then just call the function
+                    self.pause()
+
+                    if callable_args:
+                        self._call_args(args, kwargs)
+
+                    arguments = [str(i) for i in args]
+                    for i in kwargs.keys():
+                        arguments.append("{}={}".format(i, kwargs[i]))
+
+                    self.resume()
+
+                    val = None
+                    for i in range(reps):
+                        for j in range(runs_per_rep):
+                            val = func(*args, **kwargs)
+                        self.log()
+
+                    self.split("{}({}) - Decorator ({} {})".format(func.__name__, ", ".join(arguments), runs_per_rep,
+                                                                   PyTimer._plurify("run", runs_per_rep) + "_per_rep"))
+
+                    return val  # make sure value gets returned
+                elif self._paused:
+                    self._write("Timer is currently paused\n")
+                else:
+                    return func(*args, **kwargs)
+
+            return wrapper
+        return decorator_inner
 
     def deviation(self, i: int):
         """
@@ -541,16 +561,6 @@ class PyTimer(object):
                 self._running_time = self._time()
             else:
                 self._write("Timer is not currently paused\n")
-
-    def setup_decorator(self, reps=1, runs_per_rep=10):
-        """
-        Allow decorator to run function for multiples runs and reps
-        :param reps: the number of times to average the elapsed time 
-        :param runs_per_rep: the number of runs for every rep. Useful if block is generally called multiple times
-        """
-        if self._run:
-            self._decorator_runs_per_rep = runs_per_rep
-            self._decorator_reps = reps
 
     def split(self, message=""):
         if self._run and not self._paused:
