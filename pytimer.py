@@ -33,11 +33,11 @@ class BaseTimer:
             print(message)
 
     @staticmethod
-    def _format_output(name: str, runs: int, iterations: int, time: float, unit: str, args: list=(), kwargs: dict=(),
+    def _format_output(label: str, runs: int, iterations: int, time: float, unit: str, args: list=(), kwargs: dict=(),
                        message: str="") -> str:
         """
         Build up a string message based on the input parameters
-        :param name: the name of the function, part of the string being timed, or label of the call
+        :param label: the name of the function, part of the string being timed, or label of the call
         :param runs: the number of runs
         :param iterations: the number of iterations
         :param time: the measured time value
@@ -57,16 +57,16 @@ class BaseTimer:
             arguments = ""
 
         if arguments:
-            name_part = "{:42.42}".format("{}({})".format(name, arguments[:25]))
+            name_part = "{:42.42}".format("{}({})".format(label, arguments[:25]))
         else:
-            name_part = "{:15.15}".format(name)
+            name_part = "{:15.15}".format(label)
 
         if message:
             message = "| {}".format(message)
 
-        return "{:.5} {:2} - {} [runs={:3}, iterations={:3}] {:<20.20}".format(BaseTimer._convert_time(time, unit),
-                                                                               unit, name_part, runs, iterations,
-                                                                               message)
+        return "{:>7.5} {:2} - {} [runs={:3}, iterations={:3}] {:<20.20}".format(BaseTimer._convert_time(time, unit),
+                                                                                 unit, name_part, runs, iterations,
+                                                                                 message)
 
     @staticmethod
     def _replace_callable_args(args: tuple, kwargs: dict) -> Tuple[list, dict]:
@@ -163,18 +163,19 @@ class StaticTimer(BaseTimer):
         return wrapper
 
     @staticmethod
-    def time_it(block: Union[str, callable], *args, **kwargs):
-        if isinstance(block, str):
-            pass
-        else:
-            pass
+    def time_it(block: Union[str, callable], *args, runs=1, iterations_per_run=1, average_runs=True,
+                output_unit=BaseTimer.MS, use_logging=False, call_callable_args=False, log_arguments=False, **kwargs):
+        pass
 
     @staticmethod
-    def elapsed():
+    def elapsed(output_unit=BaseTimer.MS, use_logging=False, label="Elapsed"):
         if StaticTimer.elapsed_time is None:
             StaticTimer.elapsed_time = StaticTimer._time()
         else:
             dif = StaticTimer._time() - StaticTimer.elapsed_time
+
+            string = StaticTimer._format_output(label, 1, 1, dif, output_unit)
+            StaticTimer._display_message(string, use_logging=use_logging)
 
             StaticTimer.elapsed_time = StaticTimer._time()
 
