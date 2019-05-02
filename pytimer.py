@@ -11,6 +11,30 @@ class BaseTimer:
     _time = perf_counter
 
     @staticmethod
+    def _call_callable_args(args: tuple, kwargs: dict) -> Tuple[list, dict]:
+        """
+        If any value in args or kwargs is callable, then replace it with the result of calling the value
+        :param args: a list of positional arguments
+        :param kwargs: a dict of keyword arguments
+        :return: a new list and dict containing values replaced with the result of calling them if applicable
+        """
+        out_args = []
+        for arg in args:
+            if callable(arg):
+                out_args.append(arg())
+            else:
+                out_args.append(arg)
+
+        out_kwargs = {}
+        for key, value in kwargs.items():
+            if callable(value):
+                out_kwargs[key] = value()
+            else:
+                out_kwargs[key] = value
+
+        return out_args, out_kwargs
+
+    @staticmethod
     def _convert_time(time: float, unit: str) -> float:
         """
         Convert and round a time from BaseTimer._time to the unit specified
@@ -59,42 +83,18 @@ class BaseTimer:
         if arguments:
             name_part = "{:42.42}".format("{}({})".format(label, arguments[:25]))
         else:
-            name_part = "{:15.15}".format(label)
+            name_part = "{:42.42}".format(label)
 
         if message:
             message = "| {}".format(message)
 
-        return "{:>7.5} {:2} - {} [runs={:3}, iterations={:3}] {:<20.20}".format(BaseTimer._convert_time(time, unit),
-                                                                                 unit, name_part, runs, iterations,
-                                                                                 message)
-
-    @staticmethod
-    def _replace_callable_args(args: tuple, kwargs: dict) -> Tuple[list, dict]:
-        """
-        If any value in args or kwargs is callable, then replace it with the result of calling the value
-        :param args: a list of positional arguments
-        :param kwargs: a dict of keyword arguments
-        :return: a new list and dict containing values replaced with the result of calling them if applicable
-        """
-        out_args = []
-        for arg in args:
-            if callable(arg):
-                out_args.append(arg())
-            else:
-                out_args.append(arg)
-
-        out_kwargs = {}
-        for key, value in kwargs.items():
-            if callable(value):
-                out_kwargs[key] = value()
-            else:
-                out_kwargs[key] = value
-
-        return out_args, out_kwargs
+        return "{:>10.5f} {:2} - {} [runs={:3}, iterations={:3}] {:<20.20}".format(BaseTimer._convert_time(time, unit),
+                                                                                   unit, name_part, runs, iterations,
+                                                                                   message)
 
 
 class StaticTimer(BaseTimer):
-    elapsed_time = None
+    _elapsed_time = None
 
     @staticmethod
     def decorate(runs=1, iterations_per_run=1, average_runs=True, output_unit=BaseTimer.MS, use_logging=False,
@@ -119,11 +119,11 @@ class StaticTimer(BaseTimer):
                 new_args, new_kwargs = args, kwargs
                 arguments = []
 
-                # COLLECT
+                # MEASURE
                 for _ in range(runs):
                     # call any callable args and replace them with the result of the call
                     if call_callable_args:
-                        new_args, new_kwargs = StaticTimer._replace_callable_args(args, kwargs)
+                        new_args, new_kwargs = StaticTimer._call_callable_args(args, kwargs)
 
                     if log_arguments:
                         arguments.append((new_args, new_kwargs))
@@ -165,19 +165,101 @@ class StaticTimer(BaseTimer):
     @staticmethod
     def time_it(block: Union[str, callable], *args, runs=1, iterations_per_run=1, average_runs=True,
                 output_unit=BaseTimer.MS, use_logging=False, call_callable_args=False, log_arguments=False, **kwargs):
-        pass
+        """
+        Time a function or evaluate a string.
+        :param block: either a callable or a string
+        :param args: any positional arguments to pass into 'block' if it is callable
+        :param runs: the number of runs
+        :param iterations_per_run: the number of iterations for each run
+        :param average_runs: whether to average the runs together or to display them separately
+        :param output_unit: the unit to display the measured time in
+        :param use_logging: whether to use logging.info instead of print
+        :param call_callable_args: whether to replace any 'args' or 'kwargs' with the result of the function call if
+                    the argument is callable. Only valid if 'block' is callable.
+        :param log_arguments: whether to keep track of the arguments passed into 'block' so they can be displayed.
+                    Only valid if 'block' is callable
+        :param kwargs: any keyword arguments to pass into 'block' if it is callable
+        :return:
+        """
+        run_totals = []
+        arguments = []
+        value = None
+
+        # MEASURE
+        for _ in range(runs):
+            st = StaticTimer._time()
+            new_args, new_kwargs = args, kwargs
+            for _ in range(iterations_per_run):
+                if callable(block):
+                    if call_callable_args:
+                        new_args, new_kwargs = StaticTimer._call_callable_args(args, kwargs)
+
+                    if log_arguments:
+                        arguments.append((new_args, new_kwargs))
+
+                    value = block(*args, **kwargs)
+                else:
+                    value = eval(block)
+
+            run_totals.append(StaticTimer._time() - st)
+
+        # DISPLAY
+        if average_runs:
+            average = sum(run_totals) / len(run_totals)
+
+            if callable(block) and log_arguments:
+                string = StaticTimer._format_output(block.__name__, runs, iterations_per_run, average, output_unit,
+                                                    args=arguments[0][0], kwargs=arguments[0][1])
+            elif callable(block):
+                string = StaticTimer._format_output(block.__name__, runs, iterations_per_run, average, output_unit)
+            else:
+                string = StaticTimer._format_output(block, runs, iterations_per_run, average, output_unit)
+
+            StaticTimer._display_message(string, use_logging=use_logging)
+        else:
+            for i in range(runs):
+                if callable(block) and log_arguments:
+                    string = StaticTimer._format_output(block.__name__, 1, iterations_per_run, run_totals[i],
+                                                        output_unit, args=arguments[i][0], kwargs=arguments[i][1],
+                                                        message="Run {}".format(i+1))
+                elif callable(block):
+                    string = StaticTimer._format_output(block.__name__, 1, iterations_per_run, run_totals[i],
+                                                        output_unit, message="Run {}".format(i+1))
+                else:
+                    string = StaticTimer._format_output(block, runs, iterations_per_run, run_totals[i], output_unit,
+                                                        message="Run {}".format(i+1))
+
+                StaticTimer._display_message(string, use_logging=use_logging)
+
+        return value
 
     @staticmethod
-    def elapsed(output_unit=BaseTimer.MS, use_logging=False, label="Elapsed"):
-        if StaticTimer.elapsed_time is None:
-            StaticTimer.elapsed_time = StaticTimer._time()
+    def elapsed(output_unit=BaseTimer.MS, use_logging=False, label="Elapsed", update_elapsed=False):
+        """
+        Determine and display how much time has elapsed since the last call to 'start_elapsed'.
+        :param output_unit: the unit to displayed the measured time in
+        :param use_logging: whether to use logging.info instead of print
+        :param label: the label to use when displaying the measured time
+        :param update_elapsed: call 'start_elapsed' after displaying the measured time. Removes the need to call
+                'start_elapsed' again and so 'elapsed' can just keep being called successively.
+        """
+        if StaticTimer._elapsed_time is None:
+            raise RuntimeWarning("StaticTimer.start_elapsed() must be called before StaticTimer.elapsed()")
         else:
-            dif = StaticTimer._time() - StaticTimer.elapsed_time
+            dif = StaticTimer._time() - StaticTimer._elapsed_time
 
             string = StaticTimer._format_output(label, 1, 1, dif, output_unit)
             StaticTimer._display_message(string, use_logging=use_logging)
 
-            StaticTimer.elapsed_time = StaticTimer._time()
+            if update_elapsed:
+                StaticTimer.start_elapsed()
+
+    @staticmethod
+    def start_elapsed():
+        """
+        Log the current time for use with 'elapsed'. Must be called before 'elapsed' can be called.
+        """
+        StaticTimer._elapsed_time = StaticTimer._time()
 
 
 class Timer(BaseTimer):
