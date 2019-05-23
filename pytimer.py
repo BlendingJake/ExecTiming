@@ -94,6 +94,27 @@ class BaseTimer:
 
 
 class StaticTimer(BaseTimer):
+    """
+    StaticTimer is a class containing only static methods that provide three basic timing functions:
+        1. A function decorator
+            Any wrapped function will have its execution time measured anytime the function is called.
+        2. A function for timing the execution of strings or anything that is callable
+            A string or callable object is passed to the function which then measures its execution time.
+        3. A quick way to get the elapsed time
+            StaticTimer.start_elapsed() must be called first. After that, StaticTimer.elapsed() can be called to
+            display or return the amount of time since the call to start_elapsed(). elapsed() accepts an argument
+            'update_elapsed', which if set to True, will call start_elapsed() automatically.
+
+    All of these timing functions have the keyword arguments 'output_unit', 'use_logging', and 'display'.
+        If 'display' is true, then the measured time is displayed either by printing it to the console or by logging it
+            using the logging module. Otherwise, the time is returned as a float.
+
+        If 'use_logging' is true, then any displayed times will be output to logging.info. Print will be used otherwise.
+
+        'output_unit' specifies which time unit to use when returning or displaying the measured time. Possible options
+            are StaticTimer.[S, MS, US, NS], which correspond to seconds, milliseconds, microseconds, and nanoseconds,
+            respectively.
+    """
     _elapsed_time = None
 
     @staticmethod
@@ -180,6 +201,43 @@ class StaticTimer(BaseTimer):
         return wrapper
 
     @staticmethod
+    def elapsed(display=True, output_unit=BaseTimer.MS, use_logging=False, label="Elapsed", update_elapsed=False
+                ) -> Union[None, float]:
+        """
+        Determine and display how much time has elapsed since the last call to 'start_elapsed'.
+        :param display: whether to display the measured time or to return it
+        :param output_unit: the unit to displayed the measured time in
+        :param use_logging: whether to use logging.info instead of print
+        :param label: the label to use when displaying the measured time
+        :param update_elapsed: call 'start_elapsed' after displaying the measured time. Removes the need to call
+                'start_elapsed' again and so 'elapsed' can just keep being called successively.
+        :return: If 'display', then None is returned. Otherwise, the measured elapsed time is returned as a float in
+                'output_unit'
+        """
+        if StaticTimer._elapsed_time is None:
+            raise RuntimeWarning("StaticTimer.start_elapsed() must be called before StaticTimer.elapsed()")
+        else:
+            dif = StaticTimer._time() - StaticTimer._elapsed_time
+
+            if update_elapsed:
+                StaticTimer.start_elapsed()
+
+            if display:
+                string = StaticTimer._format_output(label, 1, 1, dif, output_unit)
+                StaticTimer._display_message(string, use_logging=use_logging)
+
+                return None
+            else:
+                return StaticTimer._convert_time(dif, output_unit)
+
+    @staticmethod
+    def start_elapsed():
+        """
+        Log the current time for use with 'elapsed'. Must be called before 'elapsed' can be called.
+        """
+        StaticTimer._elapsed_time = StaticTimer._time()
+
+    @staticmethod
     def time_it(block: Union[str, callable], *args, runs=1, iterations_per_run=1, average_runs=True, display=True,
                 output_unit=BaseTimer.MS, use_logging=False, call_callable_args=False, log_arguments=False, **kwargs
                 ) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
@@ -262,43 +320,6 @@ class StaticTimer(BaseTimer):
             else:
                 # Tuple[any, List[float]]
                 return value, [StaticTimer._convert_time(time, output_unit) for time in run_totals]
-
-    @staticmethod
-    def elapsed(display=True, output_unit=BaseTimer.MS, use_logging=False, label="Elapsed", update_elapsed=False
-                ) -> Union[None, float]:
-        """
-        Determine and display how much time has elapsed since the last call to 'start_elapsed'.
-        :param display: whether to display the measured time or to return it
-        :param output_unit: the unit to displayed the measured time in
-        :param use_logging: whether to use logging.info instead of print
-        :param label: the label to use when displaying the measured time
-        :param update_elapsed: call 'start_elapsed' after displaying the measured time. Removes the need to call
-                'start_elapsed' again and so 'elapsed' can just keep being called successively.
-        :return: If 'display', then None is returned. Otherwise, the measured elapsed time is returned as a float in
-                'output_unit'
-        """
-        if StaticTimer._elapsed_time is None:
-            raise RuntimeWarning("StaticTimer.start_elapsed() must be called before StaticTimer.elapsed()")
-        else:
-            dif = StaticTimer._time() - StaticTimer._elapsed_time
-
-            if update_elapsed:
-                StaticTimer.start_elapsed()
-
-            if display:
-                string = StaticTimer._format_output(label, 1, 1, dif, output_unit)
-                StaticTimer._display_message(string, use_logging=use_logging)
-
-                return None
-            else:
-                return StaticTimer._convert_time(dif, output_unit)
-
-    @staticmethod
-    def start_elapsed():
-        """
-        Log the current time for use with 'elapsed'. Must be called before 'elapsed' can be called.
-        """
-        StaticTimer._elapsed_time = StaticTimer._time()
 
 
 class Timer(BaseTimer):
