@@ -1,5 +1,6 @@
+from math import sqrt
 from time import perf_counter
-from typing import Union, Tuple, List, TextIO
+from typing import Union, Tuple, List, TextIO, Dict
 from functools import wraps
 import logging
 from sys import stdout
@@ -277,20 +278,20 @@ class StaticTimer(BaseTimer):
         run_totals = []
         arguments = []
         value = None
+        new_args, new_kwargs = args, kwargs
 
         # MEASURE
         for _ in range(runs):
+            if callable(block) and call_callable_args:
+                new_args, new_kwargs = StaticTimer._call_callable_args(args, kwargs)
+
             st = StaticTimer._time()
-            new_args, new_kwargs = args, kwargs
             for _ in range(iterations_per_run):
                 if callable(block):
-                    if call_callable_args:
-                        new_args, new_kwargs = StaticTimer._call_callable_args(args, kwargs)
-
                     if log_arguments:
                         arguments.append((new_args, new_kwargs))
 
-                    value = block(*args, **kwargs)
+                    value = block(*new_args, **new_kwargs)
                 else:
                     value = eval(block)
 
@@ -335,29 +336,109 @@ class StaticTimer(BaseTimer):
                 return value, [StaticTimer._convert_time(time, output_unit) for time in run_totals]
 
 
-class Iteration:
-    def __init__(self, label: str, time: float, args: list=(), kwargs: dict=()):
-        self.label = label
-        self.time = time
-        self.args = args
-        self.kwargs = kwargs
+class BestFitBase:
+    """
+    An abstract class to be used as a template for best fit curves. The process is to first calculate the curve using
+    calculated points and then check how accurate the curve is.
+    """
+    @staticmethod
+    def calculate_curve(points: List[Tuple[Tuple[Tuple[int], Dict[str, int]]], float]) -> dict:
+        """
+        Take a list of tuples, each containing the arguments and the time value, and determines the parameters for this
+        type of curve. All arguments must be integers.
+        :param points: each entry is ((tuple of positional arguments, dict of keyword arguments), measured time)
+        :return: a dict of the parameters of the curve
+        """
+        pass
+
+    @staticmethod
+    def calculate_point(arguments: Tuple[Tuple[Tuple[int], Dict[str, int]]], parameters: dict) -> float:
+        """
+        Take a tuple of arguments and calculate what the time should be for those arguments with the given parameters
+        :param arguments: positional and keyword arguments. All values must be ints.
+        :param parameters: the parameters of the calculated curve
+        :return: the time value for the given arguments and parameters
+        """
+        pass
+
+
+class BestFitExponential(BestFitBase):
+    @staticmethod
+    def calculate_curve(points: List[Tuple[Tuple[Tuple[int], Dict[str, int]]], float]) -> dict:
+        """
+
+        """
+        pass
+
+    @staticmethod
+    def calculate_point(arguments: Tuple[Tuple[Tuple[int], Dict[str, int]]], parameters: dict) -> float:
+        """
+
+        """
+        pass
+
+
+class BestFitLine(BestFitBase):
+    @staticmethod
+    def calculate_curve(points: List[Tuple[Tuple[Tuple[int], Dict[str, int]]], float]) -> dict:
+        """
+
+        """
+        pass
+
+    @staticmethod
+    def calculate_point(arguments: Tuple[Tuple[Tuple[int], Dict[str, int]]], parameters: dict) -> float:
+        """
+
+        """
+        pass
+
+
+class BestFitLogarithmic(BestFitBase):
+    @staticmethod
+    def calculate_curve(points: List[Tuple[Tuple[Tuple[int], Dict[str, int]]], float]) -> dict:
+        """
+
+        """
+        pass
+
+    @staticmethod
+    def calculate_point(arguments: Tuple[Tuple[Tuple[int], Dict[str, int]]], parameters: dict) -> float:
+        """
+
+        """
+        pass
+
+
+class BestFitPolynomial(BestFitBase):
+    @staticmethod
+    def calculate_curve(points: List[Tuple[Tuple[Tuple[int], Dict[str, int]]], float]) -> dict:
+        """
+
+        """
+        pass
+
+    @staticmethod
+    def calculate_point(arguments: Tuple[Tuple[Tuple[int], Dict[str, int]]], parameters: dict) -> float:
+        """
+
+        """
+        pass
 
 
 class Run:
-    def __init__(self):
-        self.iterations: List[Iteration] = []
-
-    def add_iteration(self, iteration: Iteration):
-        self.iterations.append(iteration)
-
-    def time(self) -> float:
-        if self.iterations:
-            return sum(i.time for i in self.iterations)
-        else:
-            return 0
+    def __init__(self, label: str, time: float, runs: int, iterations_per_run: int, args: list=(), kwargs: dict=()):
+        self.label: str = label
+        self.time: float = time
+        self.runs = runs
+        self.iterations_per_run = iterations_per_run
+        self.args: Union[None, list] = args if args else None
+        self.kwargs: Union[None, dict] = kwargs if kwargs else None
 
 
 class Split:
+    best_fit_curves = {}
+
     def __init__(self, label: str="Split"):
         self.runs: List[Run] = []
         self.label = label
@@ -367,18 +448,123 @@ class Split:
 
     def average(self) -> float:
         if self.runs:
-            return sum(i.time() for i in self.runs) / len(self.runs)
+            return sum(i.time for i in self.runs) / len(self.runs)
+        else:
+            return 0
+
+    def determine_best_fit(self, arg_transformers: Tuple[callable]=(), kwarg_transformers: Dict[str, callable]=()
+                           ) -> Union[None, Tuple[str, dict]]:
+        """
+        Determine the best fit curve for the runs contained in this split.
+        :return: A tuple of a string name for the best fit curve and a dict of the parameters for that curve
+        """
+        points = []
+        for run in self.runs:
+            if run.args is None and run.kwargs is None:
+                raise RuntimeWarning("Arguments must have been logged to determine a best fit curve")
+
+            # TRANSFORM ARGUMENTS
+            new_args, new_kwargs = run.args, run.kwargs
+            if arg_transformers:
+                if len(arg_transformers) != len(run.args):
+                    raise RuntimeWarning("There are {} arg transformers, but {} args".format(len(arg_transformers),
+                                                                                             len(run.args)))
+
+                new_args = []
+                for i in range(len(run.args)):
+                    new_args.append(arg_transformers[i](run.args[i]))
+
+            if kwarg_transformers:
+                if len(kwarg_transformers) != len(run.kwargs):
+                    raise RuntimeWarning("There are {} kwarg transformers, but {} kwargs".format(
+                        len(kwarg_transformers), len(run.kwargs)))
+
+                new_kwargs = {}
+                for key, value in run.kwargs.items():
+                    if key in kwarg_transformers:
+                        new_kwargs[key] = kwarg_transformers[key](value)
+                    else:
+                        raise RuntimeWarning("The key {} is not in kwarg transformers".format(key))
+
+            points.append(((new_args, new_kwargs), run.time))
+
+        best: Tuple[float, str, dict] = None  # tuple of distance, name, and parameters
+        for bfc_name, bfc in self.best_fit_curves.items():
+            params = bfc.calculate_curve(points)
+
+            # DISTANCE
+            distance = 0
+            for point in points:
+                distance += abs(point[1] - bfc.calculate_point(point[0]))
+
+            if best is None or distance < best[0]:
+                best = (distance, bfc_name, params)
+
+        if best is not None:
+            return best[1], best[2]
+        else:
+            return None
+
+    def standard_deviation(self) -> float:
+        """
+        Calculate the standard deviation of the runs contained within this split where SD is:
+        sqrt(sum (x - x_bar)**2 / n)
+        :return: the standard deviation
+        """
+        if self.runs:
+            avg = self.average()
+            return sqrt(sum((run.time - avg) ** 2 for run in self.runs) / len(self.runs))
+        else:
+            return 0
+
+    def variance(self) -> float:
+        if self.runs:
+            return self.standard_deviation() ** 2
         else:
             return 0
 
 
 class Timer(BaseTimer):
-    def __init__(self, display=True, output_stream: TextIO=stdout):
-        self.display = display
+    def __init__(self, output_stream: TextIO=stdout, initial_label: str="Split", indent: str="    "):
+        """
+        Create a new timer.
+        :param output_stream: the file-like object to write any output to. Must have a .write(str) method.
+        :param initial_label: the label to use for the first split which is created automatically
+        :param indent: the amount to indent certain lines when outputting data
+        """
         self.output_stream: TextIO = output_stream
-        self.splits: List[Split] = []
+        self.splits: List[Split] = [Split(label=initial_label)]
+        self.indent = indent
 
-    def decorate(self, runs=1, iterations_per_run=1, call_callable_args=False, log_arguments=False) -> callable:
+    def __str__(self):
+        return self._str()
+
+    def _str(self, output_unit=BaseTimer.MS) -> str:
+        """
+        Generate a string containing all splits and all logged runs in those splits.
+        :param output_unit: the time scale unit to output times in
+        :return: a formatted string containing split and run information
+        """
+        string = []
+        for split in self.splits:
+            if not split.runs:  # skip splits with no logged times
+                continue
+
+            string.append("{}:\n".format(split.label))
+
+            for run in split.runs:
+                string.append("{}{}\n".format(
+                    self.indent,
+                    self._format_output(label=run.label, runs=run.runs, iterations=run.iterations_per_run,
+                                        time=run.time, unit=output_unit, args=run.args, kwargs=run.kwargs)
+                ))
+
+            string.append("\n")
+
+        return "".join(string)
+
+    def decorate(self, runs=1, iterations_per_run=1, call_callable_args=False, log_arguments=False, split=True,
+                 split_label="Split") -> callable:
         """
         A decorator that will time a function and then immediately output the timing results either to logging.info
         or print
@@ -386,12 +572,149 @@ class Timer(BaseTimer):
         :param iterations_per_run: how many iterations to do in each of those runs
         :param call_callable_args: whether to call any arguments and pass those values instead
         :param log_arguments: whether to keep track of the arguments and display them in the output
+        :param split: automatically make a new split after timing the function
+        :param split_label: what the name of the new split will be
         :return: a function wrapper
         """
         def wrapper(func: callable) -> callable:
             @wraps(func)
             def inner_wrapper(*args, **kwargs) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
-                pass
+                value = None
+                new_args, new_kwargs = args, kwargs
+
+                # MEASURE
+                for _ in range(runs):
+                    # call any callable args and replace them with the result of the call
+                    if call_callable_args:
+                        new_args, new_kwargs = self._call_callable_args(args, kwargs)
+
+                    st = StaticTimer._time()
+                    for _ in range(iterations_per_run):
+                        value = func(*new_args, **new_kwargs)
+
+                    run = Run(label=func.__name__, time=self._time() - st, runs=1,
+                              iterations_per_run=iterations_per_run)
+
+                    if log_arguments:
+                        run.args = new_args
+                        run.kwargs = new_kwargs
+
+                    self.splits[-1].add_run(run)
+
+                if split:
+                    self.split(label=split_label)
+
+                return value
 
             return inner_wrapper
         return wrapper
+
+    def determine_best_fit(self, split_index: int=-1, *arg_transformers, **kwarg_transformers
+                           ) -> Union[None, Tuple[str, dict]]:
+        """
+        Determine the best fit curve. By default, the best fit curve for the current split is returned.
+        :param split_index: The index of the split to determine the best fit curve for
+        :param arg_transformers: functions that take an argument and return an integer, as integers are needed for
+                determining the best fit curve
+        :param kwarg_transformers: functions that take a keyword argument and return an integer, as integers are needed
+                for determining the best fit curve
+        :return: either None if there is no best fit curve, otherwise, the name of the curve, and any parameters for it
+        """
+        if split_index == -1 or 0 <= split_index < len(self.splits):
+            return self.splits[split_index].determine_best_fit(arg_transformers, kwarg_transformers)
+        else:
+            raise RuntimeWarning("The split index {} is out of bounds".format(split_index))
+
+    def output(self, output_unit=BaseTimer.MS):
+        """
+        Output all splits and all logged runs
+        :param output_unit: the time scale unit to output times in
+        """
+        self.output_stream.write(self._str(output_unit=output_unit))
+
+    def statistics(self, output_unit=BaseTimer.MS):
+        """
+        Output statistics for each split. The statistics are the average, standard deviation, and variance
+        :param output_unit: the time scale unit to output times in
+        """
+        for split in self.splits:
+            if not split.runs:  # skip splits with no logged times
+                continue
+
+            self.output_stream.write("{}:\n".format(split.label))
+
+            # STATISTICS
+            self.output_stream.write("{}Average: {} {}\n".format(
+                self.indent,
+                self._convert_time(split.average(), output_unit),
+                output_unit
+            ))
+            self.output_stream.write("{}Standard Deviation: {} {}\n".format(
+                self.indent,
+                self._convert_time(split.standard_deviation(), output_unit),
+                output_unit
+            ))
+            self.output_stream.write("{}Variance: {} {}\n".format(
+                self.indent,
+                self._convert_time(split.variance(), output_unit),
+                output_unit
+            ))
+
+            self.output_stream.write("\n")
+
+    def split(self, label: str="Split"):
+        """
+        Create a new split that will be used for subsequent timings
+        :param label: the label for the new split
+        """
+        self.splits.append(Split(label=label))
+
+    def time_it(self, block: Union[str, callable], *args, runs=1, iterations_per_run=1, call_callable_args=False,
+                log_arguments=False, split=True, split_label="Split", **kwargs
+                ) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
+        """
+        Time a function or evaluate a string.
+        :param block: either a callable or a string
+        :param args: any positional arguments to pass into 'block' if it is callable
+        :param runs: the number of runs
+        :param iterations_per_run: the number of iterations for each run
+        :param call_callable_args: whether to replace any 'args' or 'kwargs' with the result of the function call if
+                    the argument is callable. Only valid if 'block' is callable.
+        :param log_arguments: whether to keep track of the arguments passed into 'block' so they can be displayed.
+                    Only valid if 'block' is callable
+        :param split: automatically make a new split after timing the function
+        :param split_label: what the name of the new split will be
+        :param kwargs: any keyword arguments to pass into 'block' if it is callable
+        :return: If 'display', just the return value of calling/executing 'block' is returned. Otherwise, a tuple of
+                    the return value and the measured time(s) is returned. If 'average', then a single time value is
+                    returned, otherwise, a list of time values, one for each run, is returned. Any returned times will
+                    be in 'output_unit'
+        """
+        value = None
+        new_args, new_kwargs = args, kwargs
+
+        # MEASURE
+        for _ in range(runs):
+            if callable(block) and call_callable_args:
+                new_args, new_kwargs = self._call_callable_args(args, kwargs)
+
+            st = StaticTimer._time()
+            for _ in range(iterations_per_run):
+                if callable(block):
+                    value = block(*args, **kwargs)
+                else:
+                    value = eval(block)
+
+            run = Run(label=block.__name__ if callable(block) else block, time=self._time() - st,
+                      runs=1, iterations_per_run=iterations_per_run)
+
+            if log_arguments:
+                run.args = new_args
+                run.kwargs = new_kwargs
+
+            self.splits[-1].add_run(run)
+
+        if split:
+            self.split(label=split_label)
+
+        return value
