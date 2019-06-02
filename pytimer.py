@@ -1,12 +1,14 @@
 from math import sqrt
+import numpy as np
 from time import perf_counter
-from typing import Union, Tuple, List, TextIO, Dict
+from typing import Union, Tuple, List, TextIO, Dict, Set
 from functools import wraps
 import logging
 from sys import stdout
 
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
+from scipy.optimize import curve_fit
 
 
 class LoggingIO:
@@ -365,8 +367,8 @@ class BestFitBase:
         pass
 
     @staticmethod
-    def flatten_and_separate_points(points: List[Tuple[Tuple[List[int], Dict[str, int]], float]]
-                                    ) -> Tuple[List[List[int]], List[float]]:
+    def flatten_args_separate_points(points: List[Tuple[Tuple[List[int], Dict[str, int]], float]]
+                                     ) -> Tuple[List[List[int]], List[float]]:
         """
         Take a list of points and separate them two lists, one containing a list of all the args and kwargs flattened,
         the other containing the measured times corresponding to that list of arguments. Flattening the kwargs requires
@@ -383,6 +385,42 @@ class BestFitBase:
 
         return flattened_args, matching_points
 
+    @staticmethod
+    def poll(points: List[Tuple[Tuple[List[int], Dict[str, int]], float]]) -> bool:
+        """
+        Determine if this best fit method will work with the given data
+        """
+        return True
+
+
+class BestFitExponential(BestFitBase):
+    @staticmethod
+    def calculate_curve(points):
+        """
+        Use scipy.optimize.curve_fit with a*e^(b*x) to find a and b for this exponential curve
+        """
+        flattened_args, matching_points = BestFitBase.flatten_args_separate_points(points)
+        values = curve_fit(lambda x, a, b: a*np.exp(b*x), [val[0] for val in flattened_args], matching_points,
+                           p0=(0.00001, 0.00001))  # set default params low as times can be very short
+
+        return {"a": values[0][0], "b": values[0][1]}
+
+    @staticmethod
+    def calculate_point(arguments, parameters):
+        x = arguments[0][0] if arguments[0] else list(arguments[1].values())[0]  # get arg or kwarg
+        return parameters["a"] * np.exp(parameters["b"]*x)
+
+    @staticmethod
+    def poll(points):
+        """
+        There can only be one argument for a exponential curve, this guarantees that is the case
+        """
+        for args, _ in points:
+            if len(args[0]) + len(args[1]) != 1:
+                return False
+
+        return True
+
 
 class BestFitLinear(BestFitBase):
     @staticmethod
@@ -390,7 +428,7 @@ class BestFitLinear(BestFitBase):
         """
         Use sklearn.linear_model.LinearRegression to determine the variable coefficients and y-intercept
         """
-        flattened_args, matching_points = BestFitBase.flatten_and_separate_points(points)
+        flattened_args, matching_points = BestFitBase.flatten_args_separate_points(points)
 
         model = LinearRegression()
         model.fit(flattened_args, matching_points)
@@ -423,13 +461,41 @@ class BestFitLinear(BestFitBase):
         return value
 
 
+class BestFitLogarithmic(BestFitBase):
+    @staticmethod
+    def calculate_curve(points):
+        """
+        Use scipy.optimize.curve_fit with a + b*log(x) to find a and b for this logarithmic curve
+        """
+        flattened_args, matching_points = BestFitBase.flatten_args_separate_points(points)
+        values = curve_fit(lambda x, a, b: a + b*np.log(x), [val[0] for val in flattened_args], matching_points)
+
+        return {"a": values[0][0], "b": values[0][1]}
+
+    @staticmethod
+    def calculate_point(arguments, parameters):
+        x = arguments[0][0] if arguments[0] else list(arguments[1].values())[0]  # get arg or kwarg
+        return parameters["a"] + parameters["b"]*np.log(x)
+
+    @staticmethod
+    def poll(points):
+        """
+        There can only be one argument for a logarithmic curve, this guarantees that is the case
+        """
+        for args, _ in points:
+            if len(args[0]) + len(args[1]) != 1:
+                return False
+
+        return True
+
+
 class BestFitPolynomial(BestFitBase):
     @staticmethod
     def calculate_curve(points):
         """
         Use sklearn.linear_model.LinearRegression to determine the variable coefficients and y-intercept
         """
-        flattened_args, matching_points = BestFitBase.flatten_and_separate_points(points)
+        flattened_args, matching_points = BestFitBase.flatten_args_separate_points(points)
 
         poly_model = PolynomialFeatures(degree=2)
         values = poly_model.fit_transform(flattened_args)
@@ -472,7 +538,8 @@ class Run:
 
 
 class Split:
-    best_fit_curves = {"Linear": BestFitLinear, "Polynomial": BestFitPolynomial}
+    best_fit_curves = {"Exponential": BestFitExponential, "Linear": BestFitLinear, "Logarithmic": BestFitLogarithmic,
+                       "Polynomial": BestFitPolynomial}
 
     def __init__(self, label: str="Split"):
         self.runs: List[Run] = []
@@ -487,8 +554,8 @@ class Split:
         else:
             return 0
 
-    def determine_best_fit(self, arg_transformers: Tuple[callable]=(), kwarg_transformers: Dict[str, callable]=()
-                           ) -> Union[None, Tuple[str, dict]]:
+    def determine_best_fit(self, curve_type: str=any, exclude_args: Set[int]=(), exclude_kwargs: set=(),
+                           arg_transformers: Dict[Union[int, str], callable]=()) -> Union[None, Tuple[str, dict]]:
         """
         Determine the best fit curve for the runs contained in this split.
         :return: A tuple of a string name for the best fit curve and a dict of the parameters for that curve
@@ -499,46 +566,43 @@ class Split:
                 raise RuntimeWarning("Arguments must have been logged to determine a best fit curve")
 
             # TRANSFORM ARGUMENTS
-            new_args, new_kwargs = run.args, run.kwargs
+            new_args, new_kwargs = run.args[:], dict(run.kwargs)
             if arg_transformers:
-                if len(arg_transformers) != len(run.args):
-                    raise RuntimeWarning("There are {} arg transformers, but {} args".format(len(arg_transformers),
-                                                                                             len(run.args)))
-
-                new_args = []
-                for i in range(len(run.args)):
-                    new_args.append(arg_transformers[i](run.args[i]))
-
-            if kwarg_transformers:
-                if len(kwarg_transformers) != len(run.kwargs):
-                    raise RuntimeWarning("There are {} kwarg transformers, but {} kwargs".format(
-                        len(kwarg_transformers), len(run.kwargs)))
-
-                new_kwargs = {}
-                for key, value in run.kwargs.items():
-                    if key in kwarg_transformers:
-                        new_kwargs[key] = kwarg_transformers[key](value)
+                for key in arg_transformers:
+                    if isinstance(key, int):
+                        new_args[key] = arg_transformers[key](new_args[key])
                     else:
-                        raise RuntimeWarning("The key {} is not in kwarg transformers".format(key))
+                        new_kwargs[key] = arg_transformers[key](new_kwargs[key])
+
+            # EXCLUDE ARGUMENTS
+            new_args = [new_args[i] for i in range(len(new_args)) if i not in exclude_args]
+
+            for key in exclude_kwargs:
+                del new_kwargs[key]
 
             points.append(((new_args, new_kwargs), run.time))
 
-        best: Tuple[float, str, dict] = None  # tuple of distance, name, and parameters
-        for bfc_name, bfc in self.best_fit_curves.items():
-            params = bfc.calculate_curve(points)
+        if curve_type is any:
+            best: Tuple[float, str, dict] = None  # tuple of distance, name, and parameters
+            for bfc_name, bfc in self.best_fit_curves.items():
+                params = bfc.calculate_curve(points)
 
-            # DISTANCE
-            distance = 0
-            for point in points:
-                distance += abs(point[1] - bfc.calculate_point(point[0], params))
+                # DISTANCE
+                distance = 0
+                for point in points:
+                    distance += abs(point[1] - bfc.calculate_point(point[0], params))
 
-            if best is None or distance < best[0]:
-                best = (distance, bfc_name, params)
+                if best is None or distance < best[0]:
+                    best = (distance, bfc_name, params)
 
-        if best is not None:
             return best[1], best[2]
         else:
-            return None
+            if curve_type in self.best_fit_curves:
+                return curve_type, self.best_fit_curves[curve_type].calculate_curve(points)
+            else:
+                raise RuntimeWarning("{} is an invalid curve type. Must be in [{}]".format(
+                    curve_type, ", ".join(self.best_fit_curves.keys())
+                ))
 
     def standard_deviation(self) -> float:
         """
@@ -644,19 +708,22 @@ class Timer(BaseTimer):
             return inner_wrapper
         return wrapper
 
-    def determine_best_fit(self, *arg_transformers, split_index: int=-1, **kwarg_transformers
-                           ) -> Union[None, Tuple[str, dict]]:
+    def determine_best_fit(self, curve_type: str=any, exclude_args: Set[int]=(), exclude_kwargs: set=(),
+                           split_index: int=-1, transformers: dict=()) -> Union[None, Tuple[str, dict]]:
         """
         Determine the best fit curve. By default, the best fit curve for the current split is returned.
-        :param arg_transformers: functions that take an argument and return an integer, as integers are needed for
-                determining the best fit curve
+        :param curve_type: specify a specific curve type to determine the parameters for
+        :param exclude_args: the indices of the arguments to exclude when preforming regression
+        :param exclude_kwargs: the keys of the keyword arguments to exclude when preforming regression
         :param split_index: The index of the split to determine the best fit curve for
-        :param kwarg_transformers: functions that take a keyword argument and return an integer, as integers are needed
-                for determining the best fit curve
+        :param transformers: functions that take an argument and return an integer, as integers are needed for
+                determining the best fit curve. Positional arguments are denoted with integer keys denoting the position
         :return: either None if there is no best fit curve, otherwise, the name of the curve, and any parameters for it
         """
         if split_index == -1 or 0 <= split_index < len(self.splits):
-            return self.splits[split_index].determine_best_fit(arg_transformers, kwarg_transformers)
+            return self.splits[split_index].determine_best_fit(curve_type=curve_type, exclude_args=exclude_args,
+                                                               exclude_kwargs=exclude_kwargs,
+                                                               arg_transformers=transformers)
         else:
             raise RuntimeWarning("The split index {} is out of bounds".format(split_index))
 
