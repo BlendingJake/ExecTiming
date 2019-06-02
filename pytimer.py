@@ -5,6 +5,9 @@ from functools import wraps
 import logging
 from sys import stdout
 
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
+
 
 class LoggingIO:
     """
@@ -342,7 +345,7 @@ class BestFitBase:
     calculated points and then check how accurate the curve is.
     """
     @staticmethod
-    def calculate_curve(points: List[Tuple[Tuple[Tuple[int], Dict[str, int]]], float]) -> dict:
+    def calculate_curve(points: List[Tuple[Tuple[List[int], Dict[str, int]], float]]) -> dict:
         """
         Take a list of tuples, each containing the arguments and the time value, and determines the parameters for this
         type of curve. All arguments must be integers.
@@ -352,7 +355,7 @@ class BestFitBase:
         pass
 
     @staticmethod
-    def calculate_point(arguments: Tuple[Tuple[Tuple[int], Dict[str, int]]], parameters: dict) -> float:
+    def calculate_point(arguments: Tuple[List[int], Dict[str, int]], parameters: dict) -> float:
         """
         Take a tuple of arguments and calculate what the time should be for those arguments with the given parameters
         :param arguments: positional and keyword arguments. All values must be ints.
@@ -361,69 +364,101 @@ class BestFitBase:
         """
         pass
 
-
-class BestFitExponential(BestFitBase):
     @staticmethod
-    def calculate_curve(points: List[Tuple[Tuple[Tuple[int], Dict[str, int]]], float]) -> dict:
+    def flatten_and_separate_points(points: List[Tuple[Tuple[List[int], Dict[str, int]], float]]
+                                    ) -> Tuple[List[List[int]], List[float]]:
         """
+        Take a list of points and separate them two lists, one containing a list of all the args and kwargs flattened,
+        the other containing the measured times corresponding to that list of arguments. Flattening the kwargs requires
+        dict.values() to be stable.
+        """
+        flattened_args = []
+        matching_points = []
+        for all_args, y in points:  # flatten args and kwargs into a single list. Requires dicts to be stable
+            matching_points.append(y)
 
+            args = [arg for arg in all_args[0]]
+            args.extend(all_args[1].values())  # relies on keys(), and values() being stable
+            flattened_args.append(args)
+
+        return flattened_args, matching_points
+
+
+class BestFitLinear(BestFitBase):
+    @staticmethod
+    def calculate_curve(points):
         """
-        pass
+        Use sklearn.linear_model.LinearRegression to determine the variable coefficients and y-intercept
+        """
+        flattened_args, matching_points = BestFitBase.flatten_and_separate_points(points)
+
+        model = LinearRegression()
+        model.fit(flattened_args, matching_points)
+
+        params = {"b": model.intercept_}
+        i = 0
+        for _ in range(len(points[0][0][0])):
+            params["x{}".format(i)] = model.coef_[i]
+            i += 1
+
+        for key in points[0][0][1]:
+            params[key] = model.coef_[i]
+            i += 1
+
+        return params
 
     @staticmethod
-    def calculate_point(arguments: Tuple[Tuple[Tuple[int], Dict[str, int]]], parameters: dict) -> float:
+    def calculate_point(arguments, parameters):
         """
 
         """
-        pass
+        value = parameters["b"]
 
+        for i in range(len(arguments[0])):
+            value += arguments[0][i] * parameters["x{}".format(i)]
 
-class BestFitLine(BestFitBase):
-    @staticmethod
-    def calculate_curve(points: List[Tuple[Tuple[Tuple[int], Dict[str, int]]], float]) -> dict:
-        """
+        for key in arguments[1]:
+            value += arguments[1][key] * parameters[key]
 
-        """
-        pass
-
-    @staticmethod
-    def calculate_point(arguments: Tuple[Tuple[Tuple[int], Dict[str, int]]], parameters: dict) -> float:
-        """
-
-        """
-        pass
-
-
-class BestFitLogarithmic(BestFitBase):
-    @staticmethod
-    def calculate_curve(points: List[Tuple[Tuple[Tuple[int], Dict[str, int]]], float]) -> dict:
-        """
-
-        """
-        pass
-
-    @staticmethod
-    def calculate_point(arguments: Tuple[Tuple[Tuple[int], Dict[str, int]]], parameters: dict) -> float:
-        """
-
-        """
-        pass
+        return value
 
 
 class BestFitPolynomial(BestFitBase):
     @staticmethod
-    def calculate_curve(points: List[Tuple[Tuple[Tuple[int], Dict[str, int]]], float]) -> dict:
+    def calculate_curve(points):
         """
+        Use sklearn.linear_model.LinearRegression to determine the variable coefficients and y-intercept
+        """
+        flattened_args, matching_points = BestFitBase.flatten_and_separate_points(points)
 
-        """
-        pass
+        poly_model = PolynomialFeatures(degree=2)
+        values = poly_model.fit_transform(flattened_args)
+
+        values_model = LinearRegression()
+        values_model.fit(values, matching_points)
+
+        params = {"b": values_model.intercept_}
+        for i in range(len(values_model.coef_)):
+            params["x^{}".format(i)] = values_model.coef_[i]
+
+        return params
 
     @staticmethod
-    def calculate_point(arguments: Tuple[Tuple[Tuple[int], Dict[str, int]]], parameters: dict) -> float:
+    def calculate_point(arguments, parameters):
         """
 
         """
-        pass
+        flattened_args = arguments[0][:]
+        flattened_args.extend(arguments[1].values())
+
+        poly_model = PolynomialFeatures(degree=2)
+        adjusted = poly_model.fit_transform([flattened_args])[0]
+
+        value = parameters["b"]
+        for i in range(len(adjusted)):
+            value += parameters["x^{}".format(i)] * adjusted[i]
+
+        return value
 
 
 class Run:
@@ -437,7 +472,7 @@ class Run:
 
 
 class Split:
-    best_fit_curves = {}
+    best_fit_curves = {"Linear": BestFitLinear, "Polynomial": BestFitPolynomial}
 
     def __init__(self, label: str="Split"):
         self.runs: List[Run] = []
@@ -495,7 +530,7 @@ class Split:
             # DISTANCE
             distance = 0
             for point in points:
-                distance += abs(point[1] - bfc.calculate_point(point[0]))
+                distance += abs(point[1] - bfc.calculate_point(point[0], params))
 
             if best is None or distance < best[0]:
                 best = (distance, bfc_name, params)
@@ -609,13 +644,13 @@ class Timer(BaseTimer):
             return inner_wrapper
         return wrapper
 
-    def determine_best_fit(self, split_index: int=-1, *arg_transformers, **kwarg_transformers
+    def determine_best_fit(self, *arg_transformers, split_index: int=-1, **kwarg_transformers
                            ) -> Union[None, Tuple[str, dict]]:
         """
         Determine the best fit curve. By default, the best fit curve for the current split is returned.
-        :param split_index: The index of the split to determine the best fit curve for
         :param arg_transformers: functions that take an argument and return an integer, as integers are needed for
                 determining the best fit curve
+        :param split_index: The index of the split to determine the best fit curve for
         :param kwarg_transformers: functions that take a keyword argument and return an integer, as integers are needed
                 for determining the best fit curve
         :return: either None if there is no best fit curve, otherwise, the name of the curve, and any parameters for it
