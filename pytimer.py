@@ -78,8 +78,8 @@ class BaseTimer:
         output_stream.write(message + "\n")
 
     @staticmethod
-    def _format_output(label: str, runs: int, iterations: int, time: float, unit: str, args: list=(), kwargs: dict=(),
-                       message: str="") -> str:
+    def _format_output(label: str, runs: int, iterations: int, time: float, unit: str, args: Union[None, list]=(),
+                       kwargs: Union[None, dict]=(), message: str="") -> str:
         """
         Build up a string message based on the input parameters
         :param label: the name of the function, part of the string being timed, or label of the call
@@ -96,7 +96,7 @@ class BaseTimer:
             arguments = "".join((
                 ", ".join(str(arg) for arg in args),
                 ", " if args and kwargs else "",
-                ", ".join("{}={}".format(key, value) for key, value in kwargs.items()),
+                ", ".join("{}={}".format(key, value) for key, value in kwargs.items()) if kwargs else "",
             ))
         else:
             arguments = ""
@@ -528,12 +528,12 @@ class BestFitPolynomial(BestFitBase):
 
 
 class Run:
-    def __init__(self, label: str, time: float, runs: int, iterations_per_run: int, args: list=(), kwargs: dict=()):
+    def __init__(self, label: str, time: float, runs: int, iterations_per_run: int, args: tuple=(), kwargs: dict=()):
         self.label: str = label
         self.time: float = time
         self.runs = runs
         self.iterations_per_run = iterations_per_run
-        self.args: Union[None, list] = args if args else None
+        self.args: Union[None, tuple] = args if args else None
         self.kwargs: Union[None, dict] = kwargs if kwargs else None
 
 
@@ -634,6 +634,7 @@ class Timer(BaseTimer):
         self.output_stream: TextIO = output_stream
         self.splits: List[Split] = [Split(label=initial_label)]
         self.indent = indent
+        self.log_base_point = None
 
     def __str__(self):
         return self._str()
@@ -727,12 +728,40 @@ class Timer(BaseTimer):
         else:
             raise RuntimeWarning("The split index {} is out of bounds".format(split_index))
 
+    def log(self, *args, label="Log", reset=True, **kwargs) -> float:
+        """
+        Log the amount of time since the last call to start() or to log(reset=True). Arguments can be stored by adding
+        them to the function call. Will automatically call start() again unless reset=False.
+        :param args: any arguments to log with the run
+        :param label: the label/name for the log point
+        :param reset: whether to call start() again or not
+        :param kwargs: any keyword arguments to log with the run
+        :return: the amount of time in seconds since the last call to start() or to log(reset=True)
+        """
+        if self.log_base_point is None:
+            raise RuntimeWarning("start() must be called before log() can be")
+
+        tm = self._time() - self.log_base_point
+        run = Run(label=label, time=tm, runs=1, iterations_per_run=1, args=args, kwargs=kwargs)
+        self.splits[-1].add_run(run)
+
+        if reset:
+            self.start()
+
+        return tm
+
     def output(self, output_unit=BaseTimer.MS):
         """
         Output all splits and all logged runs
         :param output_unit: the time scale unit to output times in
         """
         self.output_stream.write(self._str(output_unit=output_unit))
+
+    def start(self):
+        """
+        Start the elapsed time. Must be called before log().
+        """
+        self.log_base_point = self._time()
 
     def statistics(self, output_unit=BaseTimer.MS):
         """
