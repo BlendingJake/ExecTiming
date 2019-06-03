@@ -799,11 +799,13 @@ class Timer(BaseTimer):
         else:
             raise RuntimeWarning("The split index/label {} is out of bounds/could not be found".format(adjusted_index))
 
-    def log(self, *args, label="Log", reset=True, **kwargs) -> float:
+    def log(self, *args, runs=1, iterations_per_run=1, label="Log", reset=True, **kwargs) -> float:
         """
         Log the amount of time since the last call to start() or to log(reset=True). Arguments can be stored by adding
         them to the function call. Will automatically call start() again unless reset=False.
         :param args: any arguments to log with the run
+        :param runs: how many runs this log point is for
+        :param iterations_per_run: how many iterations for each run this log point is for
         :param label: the label/name for the log point
         :param reset: whether to call start() again or not
         :param kwargs: any keyword arguments to log with the run
@@ -817,7 +819,7 @@ class Timer(BaseTimer):
                                  "Create one with .split() or on timer creation with Timer(split=True)")
 
         tm = self._time() - self.log_base_point
-        run = Run(label=label, time=tm, runs=1, iterations_per_run=1, args=args, kwargs=kwargs)
+        run = Run(label=label, time=tm, runs=runs, iterations_per_run=iterations_per_run, args=args, kwargs=kwargs)
         self.splits[-1].add_run(run)
 
         if reset:
