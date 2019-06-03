@@ -533,8 +533,8 @@ class Run:
         self.time: float = time
         self.runs = runs
         self.iterations_per_run = iterations_per_run
-        self.args: Union[None, tuple] = args if args else None
-        self.kwargs: Union[None, dict] = kwargs if kwargs else None
+        self.args: tuple = args
+        self.kwargs: dict = kwargs if kwargs else {}
 
 
 class Split:
@@ -555,26 +555,26 @@ class Split:
             return 0
 
     def determine_best_fit(self, curve_type: str=any, exclude_args: Set[int]=(), exclude_kwargs: set=(),
-                           arg_transformers: Dict[Union[int, str], callable]=()) -> Union[None, Tuple[str, dict]]:
+                           transformers: Dict[Union[int, str], callable]=()) -> Union[None, Tuple[str, dict]]:
         """
         Determine the best fit curve for the runs contained in this split.
         :return: A tuple of a string name for the best fit curve and a dict of the parameters for that curve
         """
         points = []
         for run in self.runs:
-            if run.args is None and run.kwargs is None:
+            if not run.args and not run.kwargs:
                 raise RuntimeWarning("Arguments must have been logged to determine a best fit curve")
 
             # TRANSFORM ARGUMENTS
             new_args, new_kwargs = run.args[:], dict(run.kwargs)
-            if arg_transformers:
+            if transformers:
                 for i in range(len(new_args)):
-                    if i in arg_transformers:
-                        new_args[i] = arg_transformers[i](new_args[i])
+                    if i in transformers:
+                        new_args[i] = transformers[i](new_args[i])
 
                 for key in new_kwargs:
-                    if key in arg_transformers:
-                        new_kwargs[key] = arg_transformers[key](new_kwargs[key])
+                    if key in transformers:
+                        new_kwargs[key] = transformers[key](new_kwargs[key])
 
             # EXCLUDE ARGUMENTS
             new_args = [new_args[i] for i in range(len(new_args)) if i not in exclude_args]
@@ -645,39 +645,62 @@ class Timer(BaseTimer):
     def __str__(self):
         return self._str()
 
-    def _str(self, split_index: int=all, output_unit=BaseTimer.MS, transformers: Dict[Union[str, int], callable]=()
-             ) -> str:
+    def _adjust_split_index(self, split_index: Union[int, str]) -> Union[None, int]:
         """
-        Generate a string containing all splits and all logged runs in those splits.
-        :param split_index: the split to output. Defaults to all
+        Take a split index or label and verify it is within bounds or convert it to an index, respectively.
+        :param split_index: the label or index of the split to adjust and verify
+        :return: None if out of bounds or it doesn't exist, otherwise, an integer
+        """
+        adjusted_index = None
+        if isinstance(split_index, int) and 0 <= split_index < len(self.splits):
+            adjusted_index = split_index
+        else:
+            for i in range(len(self.splits)):
+                if self.splits[i].label == split_index:
+                    adjusted_index = i
+                    break
+
+        return adjusted_index
+
+    def _str(self, split_index: Union[int, str]=all, output_unit=BaseTimer.MS,
+             transformers: Dict[Union[str, int], Dict[Union[str, int], callable]]=()) -> str:
+        """
+        Generate a string containing all splits or a specific one designated by index or label. List all runs for each
+        split.
+        :param split_index: the split index or label to output. Defaults to all
         :param output_unit: the time scale unit to output times in
-        :param transformers: a dict of keys corresponding either to the index of a positional argument or a keyword
-                    argument to a function. The function will be passed the argument and then take the result and use
-                    it to build a string representation for the output.
+        :param transformers: a dict mapping a split index or label to a dict mapping a keyword argument name or
+                    positional argument index to a function. That function will be called and passed the argument and
+                    the return value will be used to generate the output
         :return: a formatted string containing split and run information
         """
         string = []
         for i in range(len(self.splits)):
-            if split_index != all and i != split_index:
+            split = self.splits[i]
+            if split_index != all and i != split_index and split.label != split_index:
                 continue
 
-            split = self.splits[i]
             if not split.runs:  # skip splits with no logged times
                 continue
 
             string.append("{}:\n".format(split.label))
 
             for run in split.runs:
-                if transformers:
+                if transformers and (i in transformers or split.label in transformers):
+                    if i in transformers:
+                        split_transformers = transformers[i]
+                    else:
+                        split_transformers = transformers[split.label]
+
                     args, kwargs = run.args[:], dict(run.kwargs)
 
-                    for i in range(len(args)):
-                        if i in transformers:
-                            args[i] = transformers[i](args[i])
+                    for j in range(len(args)):
+                        if j in split_transformers:
+                            args[j] = split_transformers[j](args[j])
 
                     for key in kwargs:
-                        if key in transformers:
-                            kwargs[key] = transformers[key](kwargs[key])
+                        if key in split_transformers:
+                            kwargs[key] = split_transformers[key](kwargs[key])
                 else:
                     args, kwargs = run.args, run.kwargs
 
@@ -740,24 +763,25 @@ class Timer(BaseTimer):
         return wrapper
 
     def determine_best_fit(self, curve_type: str=any, exclude_args: Set[int]=(), exclude_kwargs: set=(),
-                           split_index: int=-1, transformers: Dict[Union[str, int], callable]=()
+                           split_index: Union[int, str]=-1, transformers: Dict[Union[str, int], callable]=()
                            ) -> Union[None, Tuple[str, dict]]:
         """
         Determine the best fit curve. By default, the best fit curve for the current split is returned.
         :param curve_type: specify a specific curve type to determine the parameters for
         :param exclude_args: the indices of the arguments to exclude when preforming regression
         :param exclude_kwargs: the keys of the keyword arguments to exclude when preforming regression
-        :param split_index: The index of the split to determine the best fit curve for
+        :param split_index: The index or name of the split to determine the best fit curve for
         :param transformers: functions that take an argument and return an integer, as integers are needed for
                 determining the best fit curve. Positional arguments are denoted with integer keys denoting the position
         :return: either None if there is no best fit curve, otherwise, the name of the curve, and any parameters for it
         """
-        if split_index == -1 or 0 <= split_index < len(self.splits):
-            return self.splits[split_index].determine_best_fit(curve_type=curve_type, exclude_args=exclude_args,
-                                                               exclude_kwargs=exclude_kwargs,
-                                                               arg_transformers=transformers)
+        adjusted_index = -1 if split_index == -1 else self._adjust_split_index(split_index)
+        if adjusted_index is not None:
+            return self.splits[adjusted_index].determine_best_fit(curve_type=curve_type, exclude_args=exclude_args,
+                                                                  exclude_kwargs=exclude_kwargs,
+                                                                  transformers=transformers)
         else:
-            raise RuntimeWarning("The split index {} is out of bounds".format(split_index))
+            raise RuntimeWarning("The split index/label {} is out of bounds/could not be found".format(adjusted_index))
 
     def log(self, *args, label="Log", reset=True, **kwargs) -> float:
         """
@@ -785,15 +809,31 @@ class Timer(BaseTimer):
 
         return tm
 
-    def output(self, split_index: int=all, output_unit=BaseTimer.MS, transformers: Dict[Union[int, str], callable]=()):
+    def output(self, split_index: Union[int, str]=all, output_unit=BaseTimer.MS,
+               transformers: Dict[Union[int, str], Union[callable, Dict[Union[int, str], callable]]]=()):
         """
         Output all splits and all logged runs
-        :param split_index: the split to output. Defaults to all
+        :param split_index: the split index/name to output. Defaults to all
         :param output_unit: the time scale unit to output times in
-        :param transformers: a dict of keys corresponding either to the index of a positional argument or a keyword
-                    argument to a function. The function will be passed the argument and then take the result and use
-                    it to build a string representation for the output.
+        :param transformers: either a dict mapping a split index or label to a dict, or just a dict mapping a keyword
+                    argument name or positional argument index to a function. That function will be called and passed
+                    the argument and the return value will be used to generate the output. If this is
+                    str/int -> callable, then split_index must be specified
         """
+        # not a split index/label -> dict situation
+        if transformers and callable(next(iter(transformers.values()))):
+            if split_index != all:
+                adjusted_index = self._adjust_split_index(split_index)
+
+                if adjusted_index is not None:
+                    transformers = {adjusted_index: transformers}
+                else:
+                    raise RuntimeWarning("The split index {} is not a valid index or label".format(split_index))
+            else:
+                raise RuntimeWarning(
+                    "'split_index' must be specified when 'transformers' is Dict[Union[str, int], callable]"
+                )
+
         self.output_stream.write(self._str(split_index=split_index, output_unit=output_unit, transformers=transformers))
 
     def start(self):
@@ -802,17 +842,17 @@ class Timer(BaseTimer):
         """
         self.log_base_point = self._time()
 
-    def statistics(self, split_index: int=all, output_unit=BaseTimer.MS):
+    def statistics(self, split_index: Union[int, str]=all, output_unit=BaseTimer.MS):
         """
         Output statistics for each split. The statistics are the average, standard deviation, and variance
-        :param split_index: the index of the split to display statistics for, defaults to all
+        :param split_index: the index or name of the split to display statistics for, defaults to all
         :param output_unit: the time scale unit to output times in
         """
         for i in range(len(self.splits)):
-            if split_index != all and i != split_index:  # skip wrong indices if one is specified
+            split = self.splits[i]
+            if split_index != all and i != split_index and split.label != split_index:
                 continue
 
-            split = self.splits[i]
             if not split.runs:  # skip splits with no logged times
                 continue
 
