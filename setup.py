@@ -34,5 +34,9 @@ setuptools.setup(
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Operating System :: OS Independent",
         "Topic :: Software Development :: Testing"
-    ]
+    ],
+    install_requires=[
+        "scikit-learn"
+    ],
+    python_requires=">=3"
 )
