@@ -401,7 +401,7 @@ class BestFitExponential(BestFitBase):
         """
         flattened_args, matching_points = BestFitBase.flatten_args_separate_points(points)
         values = curve_fit(lambda x, a, b: a*np.exp(b*x), [val[0] for val in flattened_args], matching_points,
-                           p0=(0.00001, 0.00001))  # set default params low as times can be very short
+                           p0=(0.000001, 0.000001))  # set default params low as measured times can be very short
 
         return {"a": values[0][0], "b": values[0][1]}
 
@@ -568,10 +568,12 @@ class Split:
             # TRANSFORM ARGUMENTS
             new_args, new_kwargs = run.args[:], dict(run.kwargs)
             if arg_transformers:
-                for key in arg_transformers:
-                    if isinstance(key, int):
-                        new_args[key] = arg_transformers[key](new_args[key])
-                    else:
+                for i in range(len(new_args)):
+                    if i in arg_transformers:
+                        new_args[i] = arg_transformers[i](new_args[i])
+
+                for key in new_kwargs:
+                    if key in arg_transformers:
                         new_kwargs[key] = arg_transformers[key](new_kwargs[key])
 
             # EXCLUDE ARGUMENTS
@@ -643,24 +645,46 @@ class Timer(BaseTimer):
     def __str__(self):
         return self._str()
 
-    def _str(self, output_unit=BaseTimer.MS) -> str:
+    def _str(self, split_index: int=all, output_unit=BaseTimer.MS, transformers: Dict[Union[str, int], callable]=()
+             ) -> str:
         """
         Generate a string containing all splits and all logged runs in those splits.
+        :param split_index: the split to output. Defaults to all
         :param output_unit: the time scale unit to output times in
+        :param transformers: a dict of keys corresponding either to the index of a positional argument or a keyword
+                    argument to a function. The function will be passed the argument and then take the result and use
+                    it to build a string representation for the output.
         :return: a formatted string containing split and run information
         """
         string = []
-        for split in self.splits:
+        for i in range(len(self.splits)):
+            if split_index != all and i != split_index:
+                continue
+
+            split = self.splits[i]
             if not split.runs:  # skip splits with no logged times
                 continue
 
             string.append("{}:\n".format(split.label))
 
             for run in split.runs:
+                if transformers:
+                    args, kwargs = run.args[:], dict(run.kwargs)
+
+                    for i in range(len(args)):
+                        if i in transformers:
+                            args[i] = transformers[i](args[i])
+
+                    for key in kwargs:
+                        if key in transformers:
+                            kwargs[key] = transformers[key](kwargs[key])
+                else:
+                    args, kwargs = run.args, run.kwargs
+
                 string.append("{}{}\n".format(
                     self.indent,
                     self._format_output(label=run.label, runs=run.runs, iterations=run.iterations_per_run,
-                                        time=run.time, unit=output_unit, args=run.args, kwargs=run.kwargs)
+                                        time=run.time, unit=output_unit, args=args, kwargs=kwargs)
                 ))
 
             string.append("\n")
@@ -716,7 +740,8 @@ class Timer(BaseTimer):
         return wrapper
 
     def determine_best_fit(self, curve_type: str=any, exclude_args: Set[int]=(), exclude_kwargs: set=(),
-                           split_index: int=-1, transformers: dict=()) -> Union[None, Tuple[str, dict]]:
+                           split_index: int=-1, transformers: Dict[Union[str, int], callable]=()
+                           ) -> Union[None, Tuple[str, dict]]:
         """
         Determine the best fit curve. By default, the best fit curve for the current split is returned.
         :param curve_type: specify a specific curve type to determine the parameters for
@@ -760,12 +785,16 @@ class Timer(BaseTimer):
 
         return tm
 
-    def output(self, output_unit=BaseTimer.MS):
+    def output(self, split_index: int=all, output_unit=BaseTimer.MS, transformers: Dict[Union[int, str], callable]=()):
         """
         Output all splits and all logged runs
+        :param split_index: the split to output. Defaults to all
         :param output_unit: the time scale unit to output times in
+        :param transformers: a dict of keys corresponding either to the index of a positional argument or a keyword
+                    argument to a function. The function will be passed the argument and then take the result and use
+                    it to build a string representation for the output.
         """
-        self.output_stream.write(self._str(output_unit=output_unit))
+        self.output_stream.write(self._str(split_index=split_index, output_unit=output_unit, transformers=transformers))
 
     def start(self):
         """
