@@ -859,28 +859,28 @@ class Timer(BaseTimer):
             self.output_stream.write("{}:\n".format(split.label))
 
             # STATISTICS
-            self.output_stream.write("{}{:<20}{}\n".format(self.indent, "Runs:", len(split.runs)))
+            self.output_stream.write("{}{:<20}{}\n".format(self.indent, "Runs", len(split.runs)))
             self.output_stream.write("{}{:<20}{} {}\n".format(
                 self.indent,
-                "Total Time:",
+                "Total Time",
                 self._convert_time(sum(run.time for run in split.runs), output_unit),
                 output_unit
             ))
             self.output_stream.write("{}{:<20}{} {}\n".format(
                 self.indent,
-                "Average:",
+                "Average",
                 self._convert_time(split.average(), output_unit),
                 output_unit
             ))
             self.output_stream.write("{}{:<20}{} {}\n".format(
                 self.indent,
-                "Standard Deviation:",
+                "Standard Deviation",
                 self._convert_time(split.standard_deviation(), output_unit),
                 output_unit
             ))
             self.output_stream.write("{}{:<20}{} {}\n".format(
                 self.indent,
-                "Variance:",
+                "Variance",
                 self._convert_time(split.variance(), output_unit),
                 output_unit
             ))
