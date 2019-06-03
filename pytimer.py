@@ -624,17 +624,21 @@ class Split:
 
 
 class Timer(BaseTimer):
-    def __init__(self, output_stream: TextIO=stdout, initial_label: str="Split", indent: str="    "):
+    def __init__(self, output_stream: TextIO=stdout, split: bool=False, split_label: str="Split", indent: str="    "):
         """
         Create a new timer.
         :param output_stream: the file-like object to write any output to. Must have a .write(str) method.
-        :param initial_label: the label to use for the first split which is created automatically
+        :param split: create a split automatically
+        :param split_label: the label for the split if one is being created automatically
         :param indent: the amount to indent certain lines when outputting data
         """
         self.output_stream: TextIO = output_stream
-        self.splits: List[Split] = [Split(label=initial_label)]
+        self.splits: List[Split] = []
         self.indent = indent
         self.log_base_point = None
+
+        if split:
+            self.splits.append(Split(label=split_label))
 
     def __str__(self):
         return self._str()
@@ -664,7 +668,7 @@ class Timer(BaseTimer):
         return "".join(string)
 
     def decorate(self, runs=1, iterations_per_run=1, call_callable_args=False, log_arguments=False, split=True,
-                 split_label="Split") -> callable:
+                 split_label: str=None) -> callable:
         """
         A decorator that will time a function and then immediately output the timing results either to logging.info
         or print
@@ -672,8 +676,8 @@ class Timer(BaseTimer):
         :param iterations_per_run: how many iterations to do in each of those runs
         :param call_callable_args: whether to call any arguments and pass those values instead
         :param log_arguments: whether to keep track of the arguments and display them in the output
-        :param split: automatically make a new split after timing the function
-        :param split_label: what the name of the new split will be
+        :param split: create a split that will be used for any runs create measuring the time of the wrapped function
+        :param split_label: what the name of the split will be. If None, then the name will be func.__name__
         :return: a function wrapper
         """
         def wrapper(func: callable) -> callable:
@@ -681,6 +685,11 @@ class Timer(BaseTimer):
             def inner_wrapper(*args, **kwargs) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
                 value = None
                 new_args, new_kwargs = args, kwargs
+
+                if split:
+                    self.split(label=func.__name__ if split_label is None else split_label)
+                elif not self.splits:
+                    raise RuntimeWarning("No split exists. Do .split(), decorate(split=True), or Timer(split=True)")
 
                 # MEASURE
                 for _ in range(runs):
@@ -700,9 +709,6 @@ class Timer(BaseTimer):
                         run.kwargs = new_kwargs
 
                     self.splits[-1].add_run(run)
-
-                if split:
-                    self.split(label=split_label)
 
                 return value
 
@@ -741,6 +747,10 @@ class Timer(BaseTimer):
         if self.log_base_point is None:
             raise RuntimeWarning("start() must be called before log() can be")
 
+        if not self.splits:
+            raise RuntimeWarning("A split does not exist to log this time in! " +
+                                 "Create one with .split() or on timer creation with Timer(split=True)")
+
         tm = self._time() - self.log_base_point
         run = Run(label=label, time=tm, runs=1, iterations_per_run=1, args=args, kwargs=kwargs)
         self.splits[-1].add_run(run)
@@ -763,30 +773,45 @@ class Timer(BaseTimer):
         """
         self.log_base_point = self._time()
 
-    def statistics(self, output_unit=BaseTimer.MS):
+    def statistics(self, split_index: int=all, output_unit=BaseTimer.MS):
         """
         Output statistics for each split. The statistics are the average, standard deviation, and variance
+        :param split_index: the index of the split to display statistics for, defaults to all
         :param output_unit: the time scale unit to output times in
         """
-        for split in self.splits:
+        for i in range(len(self.splits)):
+            if split_index != all and i != split_index:  # skip wrong indices if one is specified
+                continue
+
+            split = self.splits[i]
             if not split.runs:  # skip splits with no logged times
                 continue
 
             self.output_stream.write("{}:\n".format(split.label))
 
             # STATISTICS
-            self.output_stream.write("{}Average: {} {}\n".format(
+            self.output_stream.write("{}{:<20}{}\n".format(self.indent, "Runs:", len(split.runs)))
+            self.output_stream.write("{}{:<20}{} {}\n".format(
                 self.indent,
+                "Total Time:",
+                self._convert_time(sum(run.time for run in split.runs), output_unit),
+                output_unit
+            ))
+            self.output_stream.write("{}{:<20}{} {}\n".format(
+                self.indent,
+                "Average:",
                 self._convert_time(split.average(), output_unit),
                 output_unit
             ))
-            self.output_stream.write("{}Standard Deviation: {} {}\n".format(
+            self.output_stream.write("{}{:<20}{} {}\n".format(
                 self.indent,
+                "Standard Deviation:",
                 self._convert_time(split.standard_deviation(), output_unit),
                 output_unit
             ))
-            self.output_stream.write("{}Variance: {} {}\n".format(
+            self.output_stream.write("{}{:<20}{} {}\n".format(
                 self.indent,
+                "Variance:",
                 self._convert_time(split.variance(), output_unit),
                 output_unit
             ))
@@ -801,7 +826,7 @@ class Timer(BaseTimer):
         self.splits.append(Split(label=label))
 
     def time_it(self, block: Union[str, callable], *args, runs=1, iterations_per_run=1, call_callable_args=False,
-                log_arguments=False, split=True, split_label="Split", **kwargs
+                log_arguments=False, split=True, split_label=None, **kwargs
                 ) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
         """
         Time a function or evaluate a string.
@@ -813,8 +838,9 @@ class Timer(BaseTimer):
                     the argument is callable. Only valid if 'block' is callable.
         :param log_arguments: whether to keep track of the arguments passed into 'block' so they can be displayed.
                     Only valid if 'block' is callable
-        :param split: automatically make a new split after timing the function
-        :param split_label: what the name of the new split will be
+        :param split: create a split that will be used for any runs create measuring the time of the wrapped function
+        :param split_label: what the name of the split will be. If None, then the label will be block.__name__ if
+                    block is callable. Otherwise, it will be the block itself.
         :param kwargs: any keyword arguments to pass into 'block' if it is callable
         :return: If 'display', just the return value of calling/executing 'block' is returned. Otherwise, a tuple of
                     the return value and the measured time(s) is returned. If 'average', then a single time value is
@@ -823,6 +849,14 @@ class Timer(BaseTimer):
         """
         value = None
         new_args, new_kwargs = args, kwargs
+
+        if split:
+            if split_label is None:
+                self.split(label=block.__name__ if callable(block) else block)
+            else:
+                self.split(label=split_label)
+        elif not self.splits:
+            raise RuntimeWarning("No split exists. Do .split(), decorate(split=True), or Timer(split=True)")
 
         # MEASURE
         for _ in range(runs):
@@ -844,8 +878,5 @@ class Timer(BaseTimer):
                 run.kwargs = new_kwargs
 
             self.splits[-1].add_run(run)
-
-        if split:
-            self.split(label=split_label)
 
         return value
