@@ -130,3 +130,9 @@ timer.best_fit_curve(transformers={0: len})
  using this curve to determine what the execution time of a list of list of
  length `n=10000`, which would be `-0.013786 + 0.0000066066*10000 + 0.000000149*10000^2`.
  That is `15.028 s` or `15028 ms`
+
+## TODO
+ - [ ] Make scipy, numpy, and scikit-learn optional, just prohibit `best_fit_curve` if they aren't there
+ - [ ] Add graphing feature with matplotlib, Linear will only be graphed if there is a single argument
+ - [ ] Add the ability to sort runs so they are display in some sort of order. Maybe allow sorting
+ by time or by an argument
