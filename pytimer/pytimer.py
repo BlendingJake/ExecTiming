@@ -642,13 +642,15 @@ class Split:
 
 
 class Timer(BaseTimer):
-    def __init__(self, output_stream: TextIO=stdout, split: bool=False, split_label: str="Split", indent: str="    "):
+    def __init__(self, output_stream: TextIO=stdout, split: bool=False, split_label: str="Split", indent: str="    ",
+                 start: bool=False):
         """
         Create a new timer.
         :param output_stream: the file-like object to write any output to. Must have a .write(str) method.
         :param split: create a split automatically
         :param split_label: the label for the split if one is being created automatically
         :param indent: the amount to indent certain lines when outputting data
+        :param start: go ahead and call start() to allow .log() to be called immediately
         """
         self.output_stream: TextIO = output_stream
         self.splits: List[Split] = []
@@ -657,6 +659,9 @@ class Timer(BaseTimer):
 
         if split:
             self.splits.append(Split(label=split_label))
+
+        if start:
+            self.start()
 
     def __str__(self):
         return self._str()
@@ -801,8 +806,8 @@ class Timer(BaseTimer):
 
     def log(self, *args, runs=1, iterations_per_run=1, label="Log", reset=True, **kwargs) -> float:
         """
-        Log the amount of time since the last call to start() or to log(reset=True). Arguments can be stored by adding
-        them to the function call. Will automatically call start() again unless reset=False.
+        Log the amount of time since the last call to Timer(start=True), start(), or to log(reset=True). Arguments
+        can be stored by adding them to the function call. Will automatically call start() again unless reset=False.
         :param args: any arguments to log with the run
         :param runs: how many runs this log point is for
         :param iterations_per_run: how many iterations for each run this log point is for
@@ -838,19 +843,19 @@ class Timer(BaseTimer):
                     the argument and the return value will be used to generate the output. If this is
                     str/int -> callable, then split_index must be specified
         """
-        # not a split index/label -> dict situation
-        if transformers and callable(next(iter(transformers.values()))):
-            if split_index != all:
-                adjusted_index = self._adjust_split_index(split_index)
+        if split_index != all:
+            adjusted_index = self._adjust_split_index(split_index)
 
-                if adjusted_index is not None:
-                    transformers = {adjusted_index: transformers}
-                else:
-                    raise RuntimeWarning("The split index {} is not a valid index or label".format(split_index))
+            if adjusted_index is not None:
+                transformers = {adjusted_index: transformers}
             else:
-                raise RuntimeWarning(
-                    "'split_index' must be specified when 'transformers' is Dict[Union[str, int], callable]"
-                )
+                raise RuntimeWarning("The split index '{}' is not a valid index or label".format(split_index))
+
+        # not a split index/label -> dict situation
+        if transformers and callable(next(iter(transformers.values()))) and split_index == all:
+            raise RuntimeWarning(
+                "'split_index' must be specified when 'transformers' is Dict[Union[str, int], callable]"
+            )
 
         self.output_stream.write(self._str(split_index=split_index, output_unit=output_unit, transformers=transformers))
 

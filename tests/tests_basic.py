@@ -131,6 +131,15 @@ class TestTimerBasic(unittest.TestCase):
         self.assertEqual(timer.splits[0].runs[0].args, (5,))
         self.assertEqual(timer.splits[0].runs[0].kwargs, {})
 
+    def test_decorate_no_split(self):
+        timer = Timer()
+
+        @timer.decorate(split=False)
+        def basic(val):
+            return val + 1
+
+        self.assertRaisesRegex(RuntimeWarning, "No split exists.", basic, 8)
+
     def test_log_no_split(self):
         timer = Timer()
         timer.start()
@@ -151,6 +160,62 @@ class TestTimerBasic(unittest.TestCase):
         self.assertEqual(timer.splits[0].runs[0].iterations_per_run, 2)
         self.assertEqual(timer.splits[0].runs[0].args, (5, 6))
         self.assertDictEqual(timer.splits[0].runs[0].kwargs, {"something": 5})
+
+    def test_output_invalid_split(self):
+        timer = Timer()
+        self.assertRaisesRegex(RuntimeWarning, "The split index 'test' is not a valid index or label",
+                               timer.output, "test")
+
+    def test_output_simple_transformers_with_all_splits(self):
+        timer = Timer()
+        self.assertRaisesRegex(RuntimeWarning, "'split_index' must be specified when 'transformers' is",
+                               timer.output, transformers={"test": len})
+
+    def test_output_basic(self):
+        out = StringIO()
+
+        timer = Timer(output_stream=out, split=True, start=True)
+        sleep(0.001)
+        timer.log(label="Test")
+        timer.output()
+
+        lines = out.getvalue().split("\n")
+        self.assertEqual(lines[0], "Split:")
+        self.assertEqual(lines[1][17:], " - {:42} [runs=  1, iterations=  1] {:<20}".format("Test", ""))
+
+    def test_output_transformers(self):
+        out = StringIO()
+
+        timer = Timer(output_stream=out, split=True, start=True)
+        sleep(0.001)
+        timer.log(5, 6, label="Test", array=[1, 2, 3, 4])
+        timer.output(split_index=0, transformers={"array": sum})
+
+        lines = out.getvalue().split("\n")
+        self.assertEqual(lines[0], "Split:")
+        self.assertEqual(lines[1][17:], " - {:42} [runs=  1, iterations=  1] {:<20}".format("Test(5, 6, array=10)", ""))
+
+    def test_time_it_basic_callable(self):
+        def basic(val):
+            return val + 1
+
+        timer = Timer()
+        self.assertEqual(timer.time_it(basic, 7, runs=5), 8)
+        self.assertEqual(len(timer.splits), 1)
+        self.assertEqual(timer.splits[0].label, "basic")
+        self.assertEqual(len(timer.splits[0].runs), 5)
+
+    def test_time_it_basic_string(self):
+        string = "len([i for i in range(100)])"
+        timer = Timer()
+
+        self.assertEqual(timer.time_it(string), 100)
+        self.assertEqual(len(timer.splits), 1)
+        self.assertEqual(timer.splits[0].label, string)
+
+    def test_time_it_no_split(self):
+        timer = Timer()
+        self.assertRaisesRegex(RuntimeWarning, "No split exists.", timer.time_it, "1+1", split=False)
 
 
 if __name__ == "__main__":
