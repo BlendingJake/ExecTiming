@@ -335,6 +335,14 @@ class StaticTimer(BaseTimer):
 
 
 class Timer(BaseTimer):
+    """
+    Timer provides many of the same features as StaticTimer, but stores the measured times instead of outputting them
+    immediately. Storing the data allows features like determining the best fit curve for a split where arguments were
+    logged. Additionally, statistics can be output for any of the splits recorded.
+
+    Data is stored in Runs which are collected together into Splits.
+    """
+
     def __init__(self, output_stream: TextIO=stdout, split: bool=False, split_label: str="Split", indent: str="    ",
                  start: bool=False):
         """

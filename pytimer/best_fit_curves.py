@@ -27,6 +27,8 @@ from sklearn.preprocessing import PolynomialFeatures
 from scipy.optimize import curve_fit
 import numpy as np
 
+np.seterr(divide="ignore")
+
 
 class BestFitBase:
     """
@@ -79,34 +81,39 @@ class BestFitBase:
         """
         return True
 
+    @staticmethod
+    def _poll_single_arg(points):
+        """
+        There can only be one argument for a exponential curve, this guarantees that is the case
+        """
+        for args, _ in points:
+            if len(args[0])+len(args[1]) != 1:
+                return False
+
+        return True
+
 
 class BestFitExponential(BestFitBase):
     @staticmethod
     def calculate_curve(points):
         """
-        Use scipy.optimize.curve_fit with a*e^(b*x) to find a and b for this exponential curve
+        Use scipy.optimize.curve_fit with a + b*e^(x) to find a and b for this exponential curve
         """
         flattened_args, matching_points = BestFitBase._flatten_args_separate_points(points)
-        values = curve_fit(lambda x, a, b: a*np.exp(b*x), [val[0] for val in flattened_args], matching_points,
-                           p0=(0.000001, 0.000001))  # set default params low as measured times can be very short
+        # set default params low as measured times can be very short
+        values = curve_fit(lambda x, a, b: a + b*np.exp(x), [val[0] for val in flattened_args],
+                           matching_points, p0=(0.000001, 0.000001))
 
         return {"a": values[0][0], "b": values[0][1]}
 
     @staticmethod
     def calculate_point(arguments, parameters):
         x = arguments[0][0] if arguments[0] else list(arguments[1].values())[0]  # get arg or kwarg
-        return parameters["a"] * np.exp(parameters["b"]*x)
+        return parameters["a"] + parameters["b"]*np.exp(x)
 
     @staticmethod
     def poll(points):
-        """
-        There can only be one argument for a exponential curve, this guarantees that is the case
-        """
-        for args, _ in points:
-            if len(args[0]) + len(args[1]) != 1:
-                return False
-
-        return True
+        return BestFitBase._poll_single_arg(points)
 
 
 class BestFitLinear(BestFitBase):
@@ -166,14 +173,7 @@ class BestFitLogarithmic(BestFitBase):
 
     @staticmethod
     def poll(points):
-        """
-        There can only be one argument for a logarithmic curve, this guarantees that is the case
-        """
-        for args, _ in points:
-            if len(args[0]) + len(args[1]) != 1:
-                return False
-
-        return True
+        return BestFitBase._poll_single_arg(points)
 
 
 class BestFitPolynomial(BestFitBase):
@@ -212,3 +212,7 @@ class BestFitPolynomial(BestFitBase):
             value += parameters["x^{}".format(i)] * adjusted[i]
 
         return value
+
+    @staticmethod
+    def poll(points):
+        return BestFitBase._poll_single_arg(points)

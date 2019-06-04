@@ -84,6 +84,9 @@ class Split:
         if curve_type is any:
             best: Tuple[float, str, dict] = None  # tuple of distance, name, and parameters
             for bfc_name, bfc in self.best_fit_curves.items():
+                if not bfc.poll(points):
+                    return
+
                 params = bfc.calculate_curve(points)
 
                 # DISTANCE
@@ -94,10 +97,19 @@ class Split:
                 if best is None or distance < best[0]:
                     best = (distance, bfc_name, params)
 
-            return best[1], best[2]
+            if best is None:
+                return None
+            else:
+                return best[1], best[2]
         else:
             if curve_type in self.best_fit_curves:
-                return curve_type, self.best_fit_curves[curve_type].calculate_curve(points)
+                if self.best_fit_curves[curve_type].poll(points):
+                    return curve_type, self.best_fit_curves[curve_type].calculate_curve(points)
+                else:
+                    raise RuntimeWarning(
+                        "{}'s poll method returned that is couldn't run. There might be too many arguments.".format(
+                            curve_type
+                        ))
             else:
                 raise RuntimeWarning("{} is an invalid curve type. Must be in [{}]".format(
                     curve_type, ", ".join(self.best_fit_curves.keys())
