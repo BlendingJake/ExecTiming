@@ -36,7 +36,9 @@ setuptools.setup(
         "Topic :: Software Development :: Testing"
     ],
     install_requires=[
-        "scikit-learn"
+        "scikit-learn",
+        "scipy",
+        "numpy"
     ],
     python_requires=">=3"
 )

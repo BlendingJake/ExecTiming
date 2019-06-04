@@ -1,3 +1,7 @@
+"""
+Central file for running all existing tests
+"""
+
 import tests_basic
 import tests_best_fit_curves
 import unittest
