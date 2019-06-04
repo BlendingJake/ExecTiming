@@ -9,13 +9,13 @@ class TestConsistentFeatures(unittest.TestCase):
         timer = Timer(split=True, start=True)
         timer.log()
 
-        self.assertRaisesRegex(RuntimeWarning, "Arguments must have been logged", timer.determine_best_fit)
+        self.assertRaisesRegex(RuntimeWarning, "Arguments must have been logged", timer.best_fit_curve)
 
     def test_invalid_curve(self):
         timer = Timer(split=True, start=True)
         timer.log(5)
 
-        self.assertRaisesRegex(RuntimeWarning, "Test is an invalid curve type", timer.determine_best_fit,
+        self.assertRaisesRegex(RuntimeWarning, "Test is an invalid curve type", timer.best_fit_curve,
                                curve_type="Test")
 
     def test_specific(self):
@@ -25,7 +25,7 @@ class TestConsistentFeatures(unittest.TestCase):
         timer.splits[-1].add_run(Run(time=e ** 8, runs=1, iterations_per_run=1, label=str(8), args=(8,)))
 
         # would normally return Exponential, make sure it doesn't
-        self.assertEqual(timer.determine_best_fit(curve_type="Linear")[0], "Linear")
+        self.assertEqual(timer.best_fit_curve(curve_type="Linear")[0], "Linear")
 
 
 class TestExponential(unittest.TestCase):
@@ -35,7 +35,7 @@ class TestExponential(unittest.TestCase):
         for x in range(0, 10, 2):
             timer.splits[-1].add_run(Run(time=e**x, runs=1, iterations_per_run=1, label=str(x), args=(x,)))
 
-        result = timer.determine_best_fit(curve_type="Exponential")
+        result = timer.best_fit_curve(curve_type="Exponential")
         self.assertEqual(result[0], "Exponential")
         self.assertEqual(round(result[1]["a"], 4), 0)
         self.assertEqual(round(result[1]["b"], 4), 1)
@@ -46,7 +46,7 @@ class TestExponential(unittest.TestCase):
         for x in range(0, 10, 2):
             timer.splits[-1].add_run(Run(time=3 + 2*e**x, runs=1, iterations_per_run=1, label=str(x), args=(x,)))
 
-        result = timer.determine_best_fit(curve_type="Exponential")
+        result = timer.best_fit_curve(curve_type="Exponential")
         self.assertEqual(result[0], "Exponential")
         self.assertEqual(round(result[1]["a"], 4), 3)
         self.assertEqual(round(result[1]["b"], 4), 2)
@@ -56,7 +56,7 @@ class TestExponential(unittest.TestCase):
         timer.log(4, 6)
 
         self.assertRaisesRegex(RuntimeWarning, r"Exponential\'s poll method returned that is couldn\'t run.",
-                               timer.determine_best_fit, curve_type="Exponential")
+                               timer.best_fit_curve, curve_type="Exponential")
 
 
 class TestLinear(unittest.TestCase):
@@ -66,7 +66,7 @@ class TestLinear(unittest.TestCase):
         for x, y in ((1, 4), (10, 4), (25, 4)):
             timer.splits[-1].add_run(Run(time=y, runs=1, iterations_per_run=1, label=str(x), args=(x,)))
 
-        result = timer.determine_best_fit()
+        result = timer.best_fit_curve()
         self.assertEqual(result[0], "Linear")
         self.assertEqual(result[1]["b"], 4)
         self.assertEqual(result[1]["x0"], 0)
@@ -77,7 +77,7 @@ class TestLinear(unittest.TestCase):
         for x, y in ((1, 1), (10, 10), (25, 25)):
             timer.splits[-1].add_run(Run(time=y, runs=1, iterations_per_run=1, label=str(x), args=(x,)))
 
-        result = timer.determine_best_fit()
+        result = timer.best_fit_curve()
         self.assertEqual(result[0], "Linear")
         self.assertEqual(result[1]["b"], 0)
         self.assertEqual(result[1]["x0"], 1)
@@ -90,7 +90,7 @@ class TestLogarithmic(unittest.TestCase):
         for x in range(0, 4):
             timer.splits[-1].add_run(Run(time=x, runs=1, iterations_per_run=1, label=str(x), args=(e**x,)))
 
-        result = timer.determine_best_fit()
+        result = timer.best_fit_curve()
         self.assertEqual(result[0], "Logarithmic")
         self.assertEqual(round(result[1]["a"], 4), 0)
         self.assertEqual(round(result[1]["b"], 4), 1)
@@ -101,7 +101,7 @@ class TestLogarithmic(unittest.TestCase):
         for x in range(1, 5):
             timer.splits[-1].add_run(Run(time=2 + 3*log(x), runs=1, iterations_per_run=1, label=str(x), args=(x,)))
 
-        result = timer.determine_best_fit()
+        result = timer.best_fit_curve()
         self.assertEqual(result[0], "Logarithmic")
         self.assertEqual(round(result[1]["a"], 4), 2)
         self.assertEqual(round(result[1]["b"], 4), 3)
@@ -114,7 +114,7 @@ class TestPolynomial(unittest.TestCase):
         for x in range(1, 4):
             timer.splits[-1].add_run(Run(time=1 + x + x**2, runs=1, iterations_per_run=1, label=str(x), args=(x,)))
 
-        result = timer.determine_best_fit()
+        result = timer.best_fit_curve()
         self.assertEqual(result[0], "Polynomial")
         self.assertEqual(round(result[1]["b"], 4), 1)
         self.assertEqual(round(result[1]["x^0"], 4), 0)
@@ -127,7 +127,7 @@ class TestPolynomial(unittest.TestCase):
         for x in range(1, 4):
             timer.splits[-1].add_run(Run(time=4 + 2*x + 4*x**2, runs=1, iterations_per_run=1, label=str(x), args=(x,)))
 
-        result = timer.determine_best_fit()
+        result = timer.best_fit_curve()
         self.assertEqual(result[0], "Polynomial")
         self.assertEqual(round(result[1]["b"], 4), 4)
         self.assertEqual(round(result[1]["x^0"], 4), 0)

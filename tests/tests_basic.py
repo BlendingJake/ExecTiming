@@ -115,6 +115,13 @@ class TestStaticBasic(unittest.TestCase):
         self.assertEqual(result[0], 100)
         self.assertIsInstance(result[1], float)
 
+    def test_time_it_bad_globals(self):
+        self.assertRaisesRegex(NameError, r"name \'floor\' is not defined", StaticTimer.time_it, "floor(2.5432)")
+
+    def test_time_it_globals(self):
+        from math import floor
+        self.assertEqual(StaticTimer.time_it("floor(2.5432)", globals={"floor": floor}, display=False)[0], 2)
+
 
 class TestTimerBasic(unittest.TestCase):
     def test_decorate_basic(self):

@@ -252,7 +252,7 @@ class StaticTimer(BaseTimer):
     @staticmethod
     def time_it(block: Union[str, callable], *args, runs=1, iterations_per_run=1, average_runs=True, display=True,
                 output_unit=BaseTimer.MS, output_stream: TextIO=stdout, call_callable_args=False, log_arguments=False,
-                **kwargs) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
+                globals: dict=(), locals: dict=(), **kwargs) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
         """
         Time a function or evaluate a string.
         :param block: either a callable or a string
@@ -267,6 +267,8 @@ class StaticTimer(BaseTimer):
                     the argument is callable. Only valid if 'block' is callable.
         :param log_arguments: whether to keep track of the arguments passed into 'block' so they can be displayed.
                     Only valid if 'block' is callable
+        :param globals: globals to use if block is a string
+        :param locals: locals to use if block is a string
         :param kwargs: any keyword arguments to pass into 'block' if it is callable
         :return: If 'display', just the return value of calling/executing 'block' is returned. Otherwise, a tuple of
                     the return value and the measured time(s) is returned. If 'average', then a single time value is
@@ -277,6 +279,8 @@ class StaticTimer(BaseTimer):
         arguments = []
         value = None
         new_args, new_kwargs = args, kwargs
+        globals = globals if globals else {}
+        locals = locals if locals else {}
 
         # MEASURE
         for _ in range(runs):
@@ -291,7 +295,7 @@ class StaticTimer(BaseTimer):
 
                     value = block(*new_args, **new_kwargs)
                 else:
-                    value = eval(block)
+                    value = eval(block, globals, locals)
 
             run_totals.append(StaticTimer._time() - st)
 
@@ -436,6 +440,27 @@ class Timer(BaseTimer):
 
         return "".join(string)
 
+    def best_fit_curve(self, curve_type: str=any, exclude_args: Set[int]=(), exclude_kwargs: set=(),
+                       split_index: Union[int, str]=-1, transformers: Dict[Union[str, int], callable]=()
+                       ) -> Union[None, Tuple[str, dict]]:
+        """
+        Determine the best fit curve. By default, the best fit curve for the current split is returned.
+        :param curve_type: specify a specific curve type to determine the parameters for
+        :param exclude_args: the indices of the arguments to exclude when preforming regression
+        :param exclude_kwargs: the keys of the keyword arguments to exclude when preforming regression
+        :param split_index: The index or name of the split to determine the best fit curve for
+        :param transformers: functions that take an argument and return an integer, as integers are needed for
+                determining the best fit curve. Positional arguments are denoted with integer keys denoting the position
+        :return: either None if there is no best fit curve, otherwise, the name of the curve, and any parameters for it
+        """
+        adjusted_index = -1 if split_index == -1 else self._adjust_split_index(split_index)
+        if adjusted_index is not None:
+            return self.splits[adjusted_index].determine_best_fit(curve_type=curve_type, exclude_args=exclude_args,
+                                                                  exclude_kwargs=exclude_kwargs,
+                                                                  transformers=transformers)
+        else:
+            raise RuntimeWarning("The split index/label {} is out of bounds/could not be found".format(adjusted_index))
+
     def decorate(self, runs=1, iterations_per_run=1, call_callable_args=False, log_arguments=False, split=True,
                  split_label: str=None) -> callable:
         """
@@ -483,27 +508,6 @@ class Timer(BaseTimer):
 
             return inner_wrapper
         return wrapper
-
-    def determine_best_fit(self, curve_type: str=any, exclude_args: Set[int]=(), exclude_kwargs: set=(),
-                           split_index: Union[int, str]=-1, transformers: Dict[Union[str, int], callable]=()
-                           ) -> Union[None, Tuple[str, dict]]:
-        """
-        Determine the best fit curve. By default, the best fit curve for the current split is returned.
-        :param curve_type: specify a specific curve type to determine the parameters for
-        :param exclude_args: the indices of the arguments to exclude when preforming regression
-        :param exclude_kwargs: the keys of the keyword arguments to exclude when preforming regression
-        :param split_index: The index or name of the split to determine the best fit curve for
-        :param transformers: functions that take an argument and return an integer, as integers are needed for
-                determining the best fit curve. Positional arguments are denoted with integer keys denoting the position
-        :return: either None if there is no best fit curve, otherwise, the name of the curve, and any parameters for it
-        """
-        adjusted_index = -1 if split_index == -1 else self._adjust_split_index(split_index)
-        if adjusted_index is not None:
-            return self.splits[adjusted_index].determine_best_fit(curve_type=curve_type, exclude_args=exclude_args,
-                                                                  exclude_kwargs=exclude_kwargs,
-                                                                  transformers=transformers)
-        else:
-            raise RuntimeWarning("The split index/label {} is out of bounds/could not be found".format(adjusted_index))
 
     def log(self, *args, runs=1, iterations_per_run=1, label="Log", reset=True, **kwargs) -> float:
         """
@@ -619,7 +623,7 @@ class Timer(BaseTimer):
         self.splits.append(Split(label=label))
 
     def time_it(self, block: Union[str, callable], *args, runs=1, iterations_per_run=1, call_callable_args=False,
-                log_arguments=False, split=True, split_label=None, **kwargs
+                log_arguments=False, split=True, split_label=None, globals: dict=(), locals: dict=(), **kwargs
                 ) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
         """
         Time a function or evaluate a string.
@@ -634,6 +638,8 @@ class Timer(BaseTimer):
         :param split: create a split that will be used for any runs create measuring the time of the wrapped function
         :param split_label: what the name of the split will be. If None, then the label will be block.__name__ if
                     block is callable. Otherwise, it will be the block itself.
+        :param globals: globals to use if block is a string
+        :param locals: locals to use if block is a string
         :param kwargs: any keyword arguments to pass into 'block' if it is callable
         :return: If 'display', just the return value of calling/executing 'block' is returned. Otherwise, a tuple of
                     the return value and the measured time(s) is returned. If 'average', then a single time value is
@@ -642,6 +648,8 @@ class Timer(BaseTimer):
         """
         value = None
         new_args, new_kwargs = args, kwargs
+        globals = globals if globals else {}
+        locals = locals if locals else {}
 
         if split:
             if split_label is None:
@@ -661,7 +669,7 @@ class Timer(BaseTimer):
                 if callable(block):
                     value = block(*args, **kwargs)
                 else:
-                    value = eval(block)
+                    value = eval(block, globals, locals)
 
             run = Run(label=block.__name__ if callable(block) else block, time=self._time() - st,
                       runs=1, iterations_per_run=iterations_per_run)
