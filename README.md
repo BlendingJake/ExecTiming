@@ -1,10 +1,10 @@
-# PyTimer
+# ExecTiming
 > An advanced timer for Python that makes it easy to determine execution times.
 
 Python has a built-in package named `timeit` which provides a way to
 "Measure execution time of small code snippets." It can be great for quick
 tests, but lacks more expansive features like curve fitting, statistical information,
-and the ability to use in existing projects. PyTimer seeks to change that by
+and the ability to use in existing projects. ExecTiming seeks to change that by
 including most of the features of `timeit` and adding many more like decorators,
 argument calling and replacement, best-fit-curve determination, and in-project use.
 
@@ -28,7 +28,7 @@ argument calling and replacement, best-fit-curve determination, and in-project u
 
 ### Static decorate:
 ```
-from pytimer.timer import StaticTimer
+from exectiming.exectiming import StaticTimer
 from random import randint
 
 @StaticTimer.decorate(runs=5, average_runs=False, call_callable_args=True, log_arguments=True)
@@ -54,7 +54,7 @@ factorial(lambda: randint(3, 40))
 
 ### Static time_it:
 ```
-from pytimer.timer import StaticTimer
+from exectiming.exectiming import StaticTimer
 
 StaticTimer.time_it("pow(2, 64)", runs=5, iterations_per_run=10000)
 # 102.40978 ms - pow(2, 64) ... [runs=  5, iterations=10000]
@@ -74,7 +74,7 @@ StaticTimer.time_it("2**64", runs=5, iterations_per_run=10000)
 
 ### Transformers, statistics, and best fit:
 ```
-from pytimer.pytimer import Timer
+from exectiming.exectiming import Timer
 
 timer = Timer()
 

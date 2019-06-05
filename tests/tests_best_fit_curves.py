@@ -1,5 +1,5 @@
-from pytimer.pytimer import Timer
-from pytimer.data_structures import Run
+from exectiming.exectiming import Timer
+from exectiming.data_structures import Run
 import unittest
 from math import e, log
 

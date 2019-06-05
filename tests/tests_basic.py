@@ -1,4 +1,4 @@
-from pytimer.pytimer import StaticTimer, Timer
+from exectiming.exectiming import StaticTimer, Timer
 import unittest
 from io import StringIO
 from time import sleep
