@@ -21,7 +21,7 @@ with open("README.md", "r") as file:
 
 setuptools.setup(
     name="exectiming-blendingjake",
-    version="2.0.0b1",
+    version="2.0.0rc1",
     author="Jacob Morris",
     author_email="blendingjake@gmail.com",
     description="A Python package for measuring the execution time of code",
