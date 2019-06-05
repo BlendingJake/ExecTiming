@@ -27,6 +27,8 @@ argument calling and replacement, best-fit-curve determination, and in-project u
  elapsed time is measured.
  * Multiple runs can be carried out and averaged to remove outlying results.
 
+### [Wiki](https://github.com/BlendingJake/ExecTiming/wiki)
+
 ## Glossary
  * [`Installation`](#install)
  * [`Decorator`](#decorate)
@@ -49,7 +51,7 @@ However, basic functionality will still exist even if those dependencies aren't 
 
 
 ### <a name="decorate">Static decorate</a>
-```
+```python
 from exectiming.exectiming import StaticTimer
 from random import randint
 
@@ -75,7 +77,7 @@ factorial(lambda: randint(3, 40))
  * Arguments show up in the output to provide more information, `log_arguments=True`
 
 ### <a name="time_it">Static time_it</a>
-```
+```python
 from exectiming.exectiming import StaticTimer
 
 StaticTimer.time_it("pow(2, 64)", runs=5, iterations_per_run=10000)
@@ -90,19 +92,19 @@ StaticTimer.time_it("2**64", runs=5, iterations_per_run=10000)
  * Any needed `globals` or `locals` can be specified by passing `globals=` and `locals=`
 
  `time_it` can be used to re-write the decorator above example like so:
- ```
+ ```python
  StaticTimer.time_it(factorial, lambda: randint(3, 40), call_callable_args=True, average_runs=False, runs=5, log_arguments=True)
  ```
 
 ### Assume
-```
+```python
 from exectiming.exectiming import Timer
 timer = Timer()
 ```
 
 
 ### <a name="statistics_best_fit">Transformers, statistics, and best fit</a>
-```
+```python
 @timer.decorate(runs=5, log_arguments=True, call_callable_args=True)
 def bubble_sort(array):
     # print(len(array))
@@ -157,7 +159,7 @@ timer.best_fit_curve(transformers={0: len})
  That is `15.028 s` or `15028 ms`
 
 ### <a name="plotting">Plotting factorial</a>
-```
+```python
 @timer.decorate(runs=100, iterations_per_run=10, call_callable_args=True, log_arguments=True)
 def factorial(n):
     if n == 1:
@@ -176,7 +178,7 @@ timer.plot(plot_curve=True, time_unit=timer.US, equation_rounding=5)
  by setting `plot_curve=True`
 
 ### Plotting bubble_sort
-```
+```python
 # using bubble_sort from above, just with runs=10
 
 bubble_sort(lambda: [randint(0, 100) for _ in range(randint(100, 2500))])
@@ -190,7 +192,7 @@ timer.plot(transformer=len, plot_curve=True, curve=curve, x_label="List Length")
  must be integers, so `len` is used to make it it one
 
 ### Plotting binary_search
-```
+```python
 @timer.decorate(runs=100, iterations_per_run=5, log_arguments=True, call_callable_args=True)
 def binary_search(sorted_array, element):
     # print(len(sorted_array))
