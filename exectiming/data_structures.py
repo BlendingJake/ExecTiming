@@ -19,7 +19,8 @@ Provide a series of classes the collect run and split data for Timer() and provi
 functionality
 """
 
-from .best_fit_curves import BestFitExponential, BestFitLinear, BestFitLogarithmic, BestFitPolynomial
+from .best_fit_curves import BestFitExponential, BestFitLinear, BestFitLogarithmic, BestFitPolynomial, \
+    MISSING_CURVE_FITTING
 from math import sqrt
 from typing import Set, Dict, Union, Tuple, List
 
@@ -57,6 +58,9 @@ class Split:
         Determine the best fit curve for the runs contained in this split.
         :return: A tuple of a string name for the best fit curve and a dict of the parameters for that curve
         """
+        if MISSING_CURVE_FITTING:
+            raise RuntimeWarning("scikit-learn, scipy, and numpy are needed for curve fitting and could not be found")
+
         points = []
         for run in self.runs:
             if not run.args and not run.kwargs:
@@ -74,12 +78,13 @@ class Split:
                         new_kwargs[key] = transformers[key](new_kwargs[key])
 
             # EXCLUDE ARGUMENTS
-            new_args = [new_args[i] for i in range(len(new_args)) if i not in exclude_args]
+            collapsed = dict((i, new_args[i]) for i in range(len(new_args)) if i not in exclude_args)
 
-            for key in exclude_kwargs:
-                del new_kwargs[key]
+            for key in new_kwargs:
+                if key not in exclude_kwargs:
+                    collapsed[key] = new_kwargs[key]
 
-            points.append(((new_args, new_kwargs), run.time))
+            points.append((collapsed, run.time))
 
         if curve_type is any:
             best: Tuple[float, str, dict] = None  # tuple of distance, name, and parameters

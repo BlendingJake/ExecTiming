@@ -8,6 +8,8 @@ and the ability to use in existing projects. ExecTiming seeks to change that by
 including most of the features of `timeit` and adding many more like decorators,
 argument calling and replacement, best-fit-curve determination, and in-project use.
 
+![Imgur Image](https://imgur.com/cJ62w1Z.png)
+
 ## Features
  * `StaticTimer` which provides the ability to time functions via a decorator,
  strings, or just seeing the amount of time elapsed between a call to `.start_elapsed()` and `elapsed()`
@@ -25,8 +27,28 @@ argument calling and replacement, best-fit-curve determination, and in-project u
  elapsed time is measured.
  * Multiple runs can be carried out and averaged to remove outlying results.
 
+## Glossary
+ * [`Installation`](#install)
+ * [`Decorator`](#decorate)
+ * [`Time Strings`](#time_it)
+ * [`Statistics & Best Fit Curve`](#statistics_best_fit)
+ * [`Plotting`](#plotting)
 
-### Static decorate:
+### <a name="install">Installation</a>
+```
+pip install -i https://test.pypi.org/simple/ exectiming-blendingjake
+```
+For full functionality:
+
+ * `scipy`
+ * `scikit-learn`
+ * `numpy`
+ * `matplotlib`
+
+However, basic functionality will still exist even if those dependencies aren't found
+
+
+### <a name="decorate">Static decorate</a>
 ```
 from exectiming.exectiming import StaticTimer
 from random import randint
@@ -52,7 +74,7 @@ factorial(lambda: randint(3, 40))
  to allow testing like shown above, `call_callable_args=True`
  * Arguments show up in the output to provide more information, `log_arguments=True`
 
-### Static time_it:
+### <a name="time_it">Static time_it</a>
 ```
 from exectiming.exectiming import StaticTimer
 
@@ -72,12 +94,15 @@ StaticTimer.time_it("2**64", runs=5, iterations_per_run=10000)
  StaticTimer.time_it(factorial, lambda: randint(3, 40), call_callable_args=True, average_runs=False, runs=5, log_arguments=True)
  ```
 
-### Transformers, statistics, and best fit:
+### Assume
 ```
 from exectiming.exectiming import Timer
-
 timer = Timer()
+```
 
+
+### <a name="statistics_best_fit">Transformers, statistics, and best fit</a>
+```
 @timer.decorate(runs=5, log_arguments=True, call_callable_args=True)
 def bubble_sort(array):
     # print(len(array))
@@ -131,8 +156,76 @@ timer.best_fit_curve(transformers={0: len})
  length `n=10000`, which would be `-0.013786 + 0.0000066066*10000 + 0.000000149*10000^2`.
  That is `15.028 s` or `15028 ms`
 
+### <a name="plotting">Plotting factorial</a>
+```
+@timer.decorate(runs=100, iterations_per_run=10, call_callable_args=True, log_arguments=True)
+def factorial(n):
+    if n == 1:
+        return 1
+    else:
+        return n * factorial.__wrapped__(n-1)
+
+factorial(lambda: randint(1, 100))
+timer.plot(plot_curve=True, time_unit=timer.US, equation_rounding=5)
+```
+![Imgur Image](https://i.imgur.com/c00v9OB.png)
+
+ * `.plot()` provides a quick way to plot the measured times against an argument
+ that is the independent variable
+ * The best fit curve and equation can be automatically determined and added
+ by setting `plot_curve=True`
+
+### Plotting bubble_sort
+```
+# using bubble_sort from above, just with runs=10
+
+bubble_sort(lambda: [randint(0, 100) for _ in range(randint(100, 2500))])
+curve = timer.best_fit_curve(transformers={0: len})
+timer.plot(transformer=len, plot_curve=True, curve=curve, x_label="List Length")
+```
+![Imgur Image](https://imgur.com/cJ62w1Z.png)
+
+ * The curve can be determined beforehand and then passed into `plot()`
+ * `plot()` needs `transformer=len` because the independent and dependent variables
+ must be integers, so `len` is used to make it it one
+
+### Plotting binary_search
+```
+@timer.decorate(runs=100, iterations_per_run=5, log_arguments=True, call_callable_args=True)
+def binary_search(sorted_array, element):
+    # print(len(sorted_array))
+
+    lower, upper = 0, len(sorted_array)
+    middle = upper // 2
+
+    while middle >= lower and middle != upper:
+        if element == sorted_array[middle]:
+            return middle
+        elif element > sorted_array[middle]:
+            lower = middle + 1  # lower must be beyond middle because the middle wasn't right
+        else:
+            upper = middle - 1  # upper must be lower than the middle because the middle wasn't right
+
+        middle = (upper + lower) // 2
+
+    return None  # couldn't find it
+
+binary_search(lambda: [i for i in range(randint(0, 10000))], lambda: randint(0, 10000))
+timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude_args={1}, transformers={0: len}), key=0,
+           transformer=len, time_unit=timer.US, x_label="List Length", equation_rounding=4,
+           title="Binary Search - Random Size, Random Element")
+```
+![Imgur Image](https://imgur.com/a9kNtL9.png)
+
+ * `binary_search()` takes two arguments, so `best_fit_curve` is set to ignore
+ the second one, at index 1, and to transform the argument at index 0 using `len`
+ * Once the curve is determined, the split must be plotted. Again, there are
+ two arguments, so `key=0` says to use the first as the independent variable and
+ `transformer=len` will transform the list into an integer
+ * Additionally, the title and x-axis labels are specified and rounding set lower
+
 ## TODO
- - [ ] Make scipy, numpy, and scikit-learn optional, just prohibit `best_fit_curve` if they aren't there
- - [ ] Add graphing feature with matplotlib, Linear will only be graphed if there is a single argument
- - [ ] Add the ability to sort runs so they are display in some sort of order. Maybe allow sorting
+ - [x] Make scipy, numpy, and scikit-learn optional, just prohibit `best_fit_curve` if they aren't there
+ - [x] Add graphing feature with matplotlib, Linear will only be graphed if there is a single argument
+ - [x] Add the ability to sort runs so they are display in some sort of order. Maybe allow sorting
  by time or by an argument

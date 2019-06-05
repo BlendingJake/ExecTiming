@@ -20,12 +20,17 @@ poll(). These methods are used to determine the parameters for the given curve t
 accuracy of the curve type.
 """
 
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Union
 
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import PolynomialFeatures
-from scipy.optimize import curve_fit
-import numpy as np
+try:
+    from sklearn.linear_model import LinearRegression
+    from sklearn.preprocessing import PolynomialFeatures
+    from scipy.optimize import curve_fit
+    import numpy as np
+
+    MISSING_CURVE_FITTING = False
+except ImportError:
+    MISSING_CURVE_FITTING = True
 
 np.seterr(divide="ignore")
 
@@ -36,10 +41,10 @@ class BestFitBase:
     calculated points and then check how accurate the curve is.
     """
     @staticmethod
-    def _flatten_args_separate_points(points: List[Tuple[Tuple[List[int], Dict[str, int]], float]]
+    def _flatten_args_separate_points(points: List[Tuple[Dict[Union[str, int], int], float]]
                                       ) -> Tuple[List[List[int]], List[float]]:
         """
-        Take a list of points and separate them two lists, one containing a list of all the args and kwargs flattened,
+        Take a list of points and separate them two lists, one containing a list of all the args and kwargs values,
         the other containing the measured times corresponding to that list of arguments. Flattening the kwargs requires
         dict.values() to be stable.
         """
@@ -47,15 +52,12 @@ class BestFitBase:
         matching_points = []
         for all_args, y in points:  # flatten args and kwargs into a single list. Requires dicts to be stable
             matching_points.append(y)
-
-            args = [arg for arg in all_args[0]]
-            args.extend(all_args[1].values())  # relies on keys(), and values() being stable
-            flattened_args.append(args)
+            flattened_args.append(list(all_args.values()))
 
         return flattened_args, matching_points
 
     @staticmethod
-    def calculate_curve(points: List[Tuple[Tuple[List[int], Dict[str, int]], float]]) -> dict:
+    def calculate_curve(points: List[Tuple[Dict[Union[str, int], int], float]]) -> dict:
         """
         Take a list of tuples, each containing the arguments and the time value, and determines the parameters for this
         type of curve. All arguments must be integers.
@@ -65,7 +67,7 @@ class BestFitBase:
         pass
 
     @staticmethod
-    def calculate_point(arguments: Tuple[List[int], Dict[str, int]], parameters: dict) -> float:
+    def calculate_point(arguments: Dict[Union[str, int], int], parameters: dict) -> float:
         """
         Take a tuple of arguments and calculate what the time should be for those arguments with the given parameters
         :param arguments: positional and keyword arguments. All values must be ints.
@@ -75,19 +77,32 @@ class BestFitBase:
         pass
 
     @staticmethod
-    def poll(points: List[Tuple[Tuple[List[int], Dict[str, int]], float]]) -> bool:
+    def equation(parameters: dict, rounding: int=8) -> str:
+        """
+        Create a string representation of the parameters
+        :param parameters: the parameters describing the curve
+        :param rounding: the number of digits to round to
+        :return: a string representation
+        """
+        return ""
+
+    @staticmethod
+    def poll(points: List[Tuple[Dict[Union[str, int], int], float]]) -> bool:
         """
         Determine if this best fit method will work with the given data
         """
-        return True
+        return not MISSING_CURVE_FITTING
 
     @staticmethod
     def _poll_single_arg(points):
         """
         There can only be one argument for a exponential curve, this guarantees that is the case
         """
+        if MISSING_CURVE_FITTING:
+            return False
+
         for args, _ in points:
-            if len(args[0])+len(args[1]) != 1:
+            if len(args) != 1:
                 return False
 
         return True
@@ -108,8 +123,12 @@ class BestFitExponential(BestFitBase):
 
     @staticmethod
     def calculate_point(arguments, parameters):
-        x = arguments[0][0] if arguments[0] else list(arguments[1].values())[0]  # get arg or kwarg
+        x = next(iter(arguments.values()))
         return parameters["a"] + parameters["b"]*np.exp(x)
+
+    @staticmethod
+    def equation(parameters, rounding=8):
+        return "y = {} + {}*e^x".format(round(parameters["a"], rounding), round(parameters["b"], rounding))
 
     @staticmethod
     def poll(points):
@@ -129,11 +148,7 @@ class BestFitLinear(BestFitBase):
 
         params = {"b": model.intercept_}
         i = 0
-        for _ in range(len(points[0][0][0])):
-            params["x{}".format(i)] = model.coef_[i]
-            i += 1
-
-        for key in points[0][0][1]:
+        for key in range(len(points[0][0])):
             params[key] = model.coef_[i]
             i += 1
 
@@ -141,18 +156,19 @@ class BestFitLinear(BestFitBase):
 
     @staticmethod
     def calculate_point(arguments, parameters):
-        """
-
-        """
         value = parameters["b"]
 
-        for i in range(len(arguments[0])):
-            value += arguments[0][i] * parameters["x{}".format(i)]
-
-        for key in arguments[1]:
-            value += arguments[1][key] * parameters[key]
+        for key in arguments:
+            value += arguments[key] * parameters[key]
 
         return value
+
+    @staticmethod
+    def equation(parameters, rounding=8):
+        return "y = {} + {}".format(
+            parameters["b"],
+            " + ".join("{}*x_{}".format(round(value, rounding), key) for key, value in parameters.items() if key != "b")
+        )
 
 
 class BestFitLogarithmic(BestFitBase):
@@ -168,8 +184,12 @@ class BestFitLogarithmic(BestFitBase):
 
     @staticmethod
     def calculate_point(arguments, parameters):
-        x = arguments[0][0] if arguments[0] else list(arguments[1].values())[0]  # get arg or kwarg
+        x = next(iter(arguments.values()))
         return parameters["a"] + parameters["b"]*np.log(x)
+
+    @staticmethod
+    def equation(parameters, rounding=8):
+        return "y = {} + {}*log(x)".format(round(parameters["a"], rounding), round(parameters["b"], rounding))
 
     @staticmethod
     def poll(points):
@@ -192,26 +212,28 @@ class BestFitPolynomial(BestFitBase):
 
         params = {"b": values_model.intercept_}
         for i in range(len(values_model.coef_)):
-            params["x^{}".format(i)] = values_model.coef_[i]
+            params[i] = values_model.coef_[i]
 
         return params
 
     @staticmethod
     def calculate_point(arguments, parameters):
-        """
-
-        """
-        flattened_args = arguments[0][:]
-        flattened_args.extend(arguments[1].values())
-
-        poly_model = PolynomialFeatures(degree=2)
-        adjusted = poly_model.fit_transform([flattened_args])[0]
+        x = next(iter(arguments.values()))
 
         value = parameters["b"]
-        for i in range(len(adjusted)):
-            value += parameters["x^{}".format(i)] * adjusted[i]
+        for key in parameters:
+            if key != "b":
+                value += parameters[key] * x**key
 
         return value
+
+    @staticmethod
+    def equation(parameters, rounding=8):
+        return "y = {} + {}*x + {}*x^2".format(
+            round(parameters["b"], rounding),
+            round(parameters[1], rounding),
+            round(parameters[2], rounding)
+        )
 
     @staticmethod
     def poll(points):
