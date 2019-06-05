@@ -1,3 +1,5 @@
+from random import randint
+from exectiming.data_structures import Run
 from exectiming.exectiming import StaticTimer, Timer
 import unittest
 from io import StringIO
@@ -201,6 +203,72 @@ class TestTimerBasic(unittest.TestCase):
         lines = out.getvalue().split("\n")
         self.assertEqual(lines[0], "Split:")
         self.assertEqual(lines[1][17:], " - {:42} [runs=  1, iterations=  1] {:<20}".format("Test(5, 6, array=10)", ""))
+
+    def test_sort_basic(self):
+        timer = Timer(split=True)
+
+        ys = [randint(0, 100) for _ in range(5)]
+        xs = [randint(0, 100) for _ in range(5)]
+
+        for i in range(5):
+            timer.splits[-1].add_run(Run(time=ys[i], runs=1, iterations_per_run=1, label=str(i), args=(xs[i],),
+                                         kwargs={"test": ys[i]}))
+
+        timer.sort_runs()
+        ys.sort()
+        for i in range(5):
+            self.assertEqual(timer.splits[-1].runs[i].time, ys[i])
+
+        timer.sort_runs(keys=0)
+        xs.sort()
+        for i in range(5):
+            self.assertEqual(timer.splits[-1].runs[i].args[0], xs[i])
+
+        timer.sort_runs(keys="test")
+        for i in range(5):
+            self.assertEqual(timer.splits[-1].runs[i].kwargs["test"], ys[i])
+
+    def test_sort_transformers(self):
+        timer = Timer(split=True)
+
+        timer.splits[-1].add_run(Run(time=4, runs=1, iterations_per_run=1, label="1", args=(7,),
+                                     kwargs={"test": [1, 2]}))
+        timer.splits[-1].add_run(Run(time=3, runs=1, iterations_per_run=1, label="2", args=(9,),
+                                     kwargs={"test": [1]}))
+
+        timer.sort_runs()
+        self.assertEqual(timer.splits[-1].runs[0].label, "2")
+        self.assertEqual(timer.splits[-1].runs[1].label, "1")
+
+        timer.sort_runs(keys=0)
+        self.assertEqual(timer.splits[-1].runs[0].label, "1")
+        self.assertEqual(timer.splits[-1].runs[1].label, "2")
+
+        timer.sort_runs(keys="test", transformers=len)
+        self.assertEqual(timer.splits[-1].runs[0].label, "2")
+        self.assertEqual(timer.splits[-1].runs[1].label, "1")
+
+    def test_sort_complicated(self):
+        timer = Timer(split=True, label="First")
+
+        timer.splits[-1].add_run(Run(time=4, runs=1, iterations_per_run=1, label="a1", kwargs={"test": [1, 2]}))
+        timer.splits[-1].add_run(Run(time=3, runs=1, iterations_per_run=1, label="a2", kwargs={"test": [8]}))
+
+        timer.split(label="Second")
+        timer.splits[-1].add_run(Run(time=43, runs=1, iterations_per_run=1, label="b1", kwargs={"test": [1, 2]}))
+        timer.splits[-1].add_run(Run(time=23, runs=1, iterations_per_run=1, label="b2", kwargs={"test": [4]}))
+
+        timer.sort_runs(split_index="First")
+        self.assertEqual(timer.splits[0].runs[0].label, "a2")
+        self.assertEqual(timer.splits[0].runs[1].label, "a1")
+        self.assertEqual(timer.splits[1].runs[0].label, "b1")
+        self.assertEqual(timer.splits[1].runs[1].label, "b2")
+
+        timer.sort_runs(keys="test", transformers={"First": sum, "Second": len})
+        self.assertEqual(timer.splits[0].runs[0].label, "a1")
+        self.assertEqual(timer.splits[0].runs[1].label, "a2")
+        self.assertEqual(timer.splits[1].runs[0].label, "b2")
+        self.assertEqual(timer.splits[1].runs[1].label, "b1")
 
     def test_time_it_basic_callable(self):
         def basic(val):

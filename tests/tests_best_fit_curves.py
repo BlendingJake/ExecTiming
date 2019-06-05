@@ -69,7 +69,7 @@ class TestLinear(unittest.TestCase):
         result = timer.best_fit_curve()
         self.assertEqual(result[0], "Linear")
         self.assertEqual(result[1]["b"], 4)
-        self.assertEqual(result[1]["x0"], 0)
+        self.assertEqual(result[1][0], 0)
 
     def test_sloped(self):
         timer = Timer(split=True)
@@ -80,7 +80,7 @@ class TestLinear(unittest.TestCase):
         result = timer.best_fit_curve()
         self.assertEqual(result[0], "Linear")
         self.assertEqual(result[1]["b"], 0)
-        self.assertEqual(result[1]["x0"], 1)
+        self.assertEqual(result[1][0], 1)
 
 
 class TestLogarithmic(unittest.TestCase):
@@ -117,9 +117,9 @@ class TestPolynomial(unittest.TestCase):
         result = timer.best_fit_curve()
         self.assertEqual(result[0], "Polynomial")
         self.assertEqual(round(result[1]["b"], 4), 1)
-        self.assertEqual(round(result[1]["x^0"], 4), 0)
-        self.assertEqual(round(result[1]["x^1"], 4), 1)
-        self.assertEqual(round(result[1]["x^2"], 4), 1)
+        self.assertEqual(round(result[1][0], 4), 0)
+        self.assertEqual(round(result[1][1], 4), 1)
+        self.assertEqual(round(result[1][2], 4), 1)
 
     def test_complicated(self):
         timer = Timer(split=True)
@@ -130,9 +130,9 @@ class TestPolynomial(unittest.TestCase):
         result = timer.best_fit_curve()
         self.assertEqual(result[0], "Polynomial")
         self.assertEqual(round(result[1]["b"], 4), 4)
-        self.assertEqual(round(result[1]["x^0"], 4), 0)
-        self.assertEqual(round(result[1]["x^1"], 4), 2)
-        self.assertEqual(round(result[1]["x^2"], 4), 4)
+        self.assertEqual(round(result[1][0], 4), 0)
+        self.assertEqual(round(result[1][1], 4), 2)
+        self.assertEqual(round(result[1][2], 4), 4)
 
 
 if __name__ == "__main__":
