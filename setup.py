@@ -20,7 +20,7 @@ with open("README.md", "r") as file:
     long_description = file.read()
 
 setuptools.setup(
-    name="exectiming-blendingjake",
+    name="exectiming",
     version="2.0.0rc1",
     author="Jacob Morris",
     author_email="blendingjake@gmail.com",
