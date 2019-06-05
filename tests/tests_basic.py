@@ -67,14 +67,14 @@ class TestStaticBasic(unittest.TestCase):
     def test_elapsed_basic(self):
         out = StringIO()
 
-        StaticTimer.start_elapsed()
+        StaticTimer.start()
         sleep(0.001)
         StaticTimer.elapsed(output_stream=out)
 
         self.assertEqual(out.getvalue()[13:], " - {:42} [runs=  1, iterations=  1] {:<20}\n".format("Elapsed", ""))
 
     def test_elapsed_basic_no_display(self):
-        StaticTimer.start_elapsed()
+        StaticTimer.start()
         sleep(0.001)
         result = StaticTimer.elapsed(display=False)
         self.assertIsInstance(result, float)

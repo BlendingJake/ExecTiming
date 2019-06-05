@@ -143,16 +143,20 @@ class StaticTimer(BaseTimer):
     def decorate(runs=1, iterations_per_run=1, average_runs=True, display=True, time_unit=BaseTimer.MS,
                  output_stream: TextIO=stdout, call_callable_args=False, log_arguments=False) -> callable:
         """
-        A decorator that will time a function and then immediately output the timing results either to logging.info
-        or print
-        :param runs: the number of runs to measure the time for
-        :param iterations_per_run: how many iterations to do in each of those runs
-        :param average_runs: whether to average the runs together or list them individually
-        :param display: whether to display the measured time or to return it as ('block' return value, time(s))
+        A decorator that will time a function and then either output the results to `output_stream` if `display`.
+        Otherwise, the measured time(s) will be returned along with the return value of the wrapped function
+        :param runs: how many times the execution time of the wrapped function will be measured
+        :param iterations_per_run: how many times the wrapped function will be called for each run. The time for the
+                    run will the sum of the times of iterations
+        :param average_runs: whether to average the measured times from all the runs together or not
+        :param display: whether to display the measured time or to return it as
+                    `Tuple[function return value: any, times: Union[float, List[float]]]`
         :param time_unit: the time scale to output the values in
-        :param output_stream: the file-like object to write any output to if the message is being displayed
-        :param call_callable_args: whether to call any arguments and pass those values instead
-        :param log_arguments: whether to keep track of the arguments and display them in the output
+        :param output_stream: the file-like object to write any output to if `display`
+        :param call_callable_args: If True, then any `callable` arguments/parameters that are passed into the wrapped
+                    function will be replaced with their return value. So `wrapped(callable)` will actually be
+                    `wrapped(callable())`
+        :param log_arguments: whether to keep track of the arguments so they can be displayed if `display`
         :return: a function wrapper
         """
         def wrapper(func: callable) -> callable:
@@ -224,25 +228,27 @@ class StaticTimer(BaseTimer):
 
     @staticmethod
     def elapsed(display=True, time_unit=BaseTimer.MS, output_stream: TextIO=stdout, label="Elapsed",
-                update_elapsed=False) -> Union[None, float]:
+                reset=False) -> Union[None, float]:
         """
-        Determine and display how much time has elapsed since the last call to 'start_elapsed'.
+        Determine how much time has elapsed since the last call to `.start()` or `.elasped(reset=True). `.start()` must
+        be called before `.elasped()` can be. The elapsed time will either be displayed if `display` or otherwise will
+        be returned as a float.
         :param display: whether to display the measured time or to return it
-        :param time_unit: the unit to displayed the measured time in
-        :param output_stream: the file-like object to write any output to if the message is being displayed
-        :param label: the label to use when displaying the measured time
-        :param update_elapsed: call 'start_elapsed' after displaying the measured time. Removes the need to call
-                'start_elapsed' again and so 'elapsed' can just keep being called successively.
-        :return: If 'display', then None is returned. Otherwise, the measured elapsed time is returned as a float in
-                'time_unit'
+        :param time_unit: the unit to display the measured time in
+        :param output_stream: the file-like object to write any output to if `display`
+        :param label: the label to use if displaying the measured time
+        :param reset: call `.start()` after calculating the elapsed time. Removes the need to call `.start()` again and
+                    so `.elapsed()` can be called successively.
+        :return: If `display`, then None is returned. Otherwise, the elapsed time is returned as a float in
+                `time_unit`
         """
         if StaticTimer._elapsed_time is None:
-            raise RuntimeWarning("StaticTimer.start_elapsed() must be called before StaticTimer.elapsed()")
+            raise RuntimeWarning("StaticTimer.start() must be called before StaticTimer.elapsed()")
         else:
             dif = StaticTimer._time() - StaticTimer._elapsed_time
 
-            if update_elapsed:
-                StaticTimer.start_elapsed()
+            if reset:
+                StaticTimer.start()
 
             if display:
                 string = StaticTimer._format_output(label, 1, 1, dif, time_unit)
@@ -253,9 +259,10 @@ class StaticTimer(BaseTimer):
                 return StaticTimer._convert_time(dif, time_unit)
 
     @staticmethod
-    def start_elapsed():
+    def start():
         """
-        Log the current time for use with 'elapsed'. Must be called before 'elapsed' can be called.
+        Log the current time so `.elapsed()` can be called. Must be called before `.elapsed()` can be called for the
+        first time.
         """
         StaticTimer._elapsed_time = StaticTimer._time()
 
@@ -264,26 +271,29 @@ class StaticTimer(BaseTimer):
                 time_unit=BaseTimer.MS, output_stream: TextIO=stdout, call_callable_args=False, log_arguments=False,
                 globals: dict=(), locals: dict=(), **kwargs) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
         """
-        Time a function or evaluate a string.
+        Measure the execution time of a function are string. Positional and keyword arguments can be passed through to
+        `block` if it is a function. `eval` is used if `block` is a string and so a namespace can be passed to it by
+        setting `globals` and/or `locals`.
         :param block: either a callable or a string
-        :param args: any positional arguments to pass into 'block' if it is callable
-        :param runs: the number of runs
-        :param iterations_per_run: the number of iterations for each run
-        :param average_runs: whether to average the runs together or to display them separately
-        :param display: whether to display the measured time or to return it as ('block' return value, time(s))
-        :param time_unit: the unit to display the measured time in
-        :param output_stream: the file-like object to write any output to if the message is being displayed
-        :param call_callable_args: whether to replace any 'args' or 'kwargs' with the result of the function call if
-                    the argument is callable. Only valid if 'block' is callable.
-        :param log_arguments: whether to keep track of the arguments passed into 'block' so they can be displayed.
-                    Only valid if 'block' is callable
-        :param globals: globals to use if block is a string
-        :param locals: locals to use if block is a string
-        :param kwargs: any keyword arguments to pass into 'block' if it is callable
-        :return: If 'display', just the return value of calling/executing 'block' is returned. Otherwise, a tuple of
-                    the return value and the measured time(s) is returned. If 'average', then a single time value is
-                    returned, otherwise, a list of time values, one for each run, is returned. Any returned times will
-                    be in 'time_unit'
+        :param args: any positional arguments to pass into `block` if it is callable
+        :param runs: the number of times to measure the execution time
+        :param iterations_per_run: the number of times to execute the function for each run
+        :param average_runs: whether to average the runs together or not
+        :param display: whether to display the measured time or to return it
+        :param time_unit: the unit to display the measured time in if `display`
+        :param output_stream: the file-like object to write any output to if `display`
+        :param call_callable_args: If True, then any `callable` values in `args` and `kwargs` will be
+                    replaced with their return value. So `time_it(func, callable1, something=callable2` will become
+                    `func(callable1(), something=callable2())`. Only useful if `block` is callable
+        :param log_arguments: whether to keep track of the arguments so they can be displayed if `display`.
+                    Only valid if `block` is callable
+        :param globals: a global namespace to pass to `eval` if `block` is a string
+        :param locals: a local namespace to pass to `eval` if `block` is a string
+        :param kwargs: any keyword arguments to pass into `block` if it is callable
+        :return: If `display`, then just the return value of calling/evaluating `block` is returned. Otherwise, a
+                    tuple of the return value and the measured time(s) is returned. If `average`, then a single time
+                    value is returned. Otherwise, a list of time values, one for each run, is returned.
+                    Any returned times will be in `time_unit`
         """
         run_totals = []
         arguments = []
@@ -361,11 +371,13 @@ class Timer(BaseTimer):
                  start: bool=False):
         """
         Create a new timer.
-        :param output_stream: the file-like object to write any output to. Must have a .write(str) method.
-        :param split: create a split automatically
-        :param label: the label for the split if one is being created automatically
-        :param indent: the amount to indent certain lines when outputting data
-        :param start: go ahead and call start() to allow .log() to be called immediately
+        :param output_stream: the file-like object to write any output to. Must have a `.write(str)` method.
+        :param split: automatically create a split. Needed if the first calls will be to `.start()` and `.log()` as
+                    `.time_it()` and `.decorate()` create new splits for themselves by default
+        :param label: the label for the new split if `split`
+        :param indent: the amount to indent lines when outputting data
+        :param start: go ahead and call `.start()` to allow `.log()` to be called immediately. Only use if a minimal
+                    amount of time will pass between timer creation the first call to `.log()`
         """
         self.output_stream: TextIO = output_stream
         self.splits: List[Split] = []
@@ -454,14 +466,18 @@ class Timer(BaseTimer):
                        split_index: Union[int, str]=-1, transformers: Dict[Union[str, int], callable]=()
                        ) -> Union[None, Tuple[str, dict]]:
         """
-        Determine the best fit curve. By default, the best fit curve for the current split is returned.
+        Determine the best fit curve for a split using logged arguments as the independent variable and the measured
+        time as the dependent variable. By default, the most recent split is used. All non-excluded arguments must have
+        integer values to allow curve calculation. If the values are not integers, then they must be transformed.
         :param curve_type: specify a specific curve type to determine the parameters for
-        :param exclude_args: the indices of the arguments to exclude when preforming regression
-        :param exclude_kwargs: the keys of the keyword arguments to exclude when preforming regression
+        :param exclude_args: the indices of the positional arguments to exclude when performing curve calculation
+        :param exclude_kwargs: the keys of the keyword arguments to exclude when performing curve calculation
         :param split_index: The index or name of the split to determine the best fit curve for
         :param transformers: functions that take an argument and return an integer, as integers are needed for
                 determining the best fit curve. Positional arguments are denoted with integer keys denoting the position
-        :return: either None if there is no best fit curve, otherwise, the name of the curve, and any parameters for it
+                and keyword arguments are denoted by the key itself. Example, `func(list)` would need
+                `transformers={0: len}` where `len` can be replaced with any function that returns an integer
+        :return: None if there is no best fit curve. Otherwise, the name of the curve and any parameters
         """
         adjusted_index = -1 if split_index == -1 else self._adjust_split_index(split_index)
         if adjusted_index is not None:
@@ -474,19 +490,21 @@ class Timer(BaseTimer):
     def decorate(self, runs=1, iterations_per_run=1, call_callable_args=False, log_arguments=False, split=True,
                  split_label: str=None) -> callable:
         """
-        A decorator that will time a function and then immediately output the timing results either to logging.info
-        or print
-        :param runs: the number of runs to measure the time for
-        :param iterations_per_run: how many iterations to do in each of those runs
-        :param call_callable_args: whether to call any arguments and pass those values instead
-        :param log_arguments: whether to keep track of the arguments and display them in the output
-        :param split: create a split that will be used for any runs create measuring the time of the wrapped function
-        :param split_label: what the name of the split will be. If None, then the name will be func.__name__
+        A decorator that will time a function and store the measured time
+        :param runs: the number times to measure the execution time
+        :param iterations_per_run: how many times to execute the function for each run
+        :param call_callable_args: If True, then any `callable` arguments/parameters that are passed into the wrapped
+                    function will be replaced with their return value. So `wrapped(callable)` will actually be
+                    `wrapped(callable())`
+        :param log_arguments: whether to keep track of the arguments so they can be displayed at a later point or used
+                    for curve calculation
+        :param split: create a split that will be used to store any runs created
+        :param split_label: what the name of the new split will be. If None, then func.__name__ will be used
         :return: a function wrapper
         """
         def wrapper(func: callable) -> callable:
             @wraps(func)
-            def inner_wrapper(*args, **kwargs) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
+            def inner_wrapper(*args, **kwargs) -> any:
                 value = None
                 new_args, new_kwargs = args, kwargs
 
@@ -519,17 +537,20 @@ class Timer(BaseTimer):
             return inner_wrapper
         return wrapper
 
-    def log(self, *args, runs=1, iterations_per_run=1, label="Log", reset=True, **kwargs) -> float:
+    def log(self, *args, runs=1, iterations_per_run=1, label="Log", reset=True, time_unit=BaseTimer.MS, **kwargs
+            ) -> float:
         """
-        Log the amount of time since the last call to Timer(start=True), start(), or to log(reset=True). Arguments
-        can be stored by adding them to the function call. Will automatically call start() again unless reset=False.
-        :param args: any arguments to log with the run
+        Log the amount of time since the last call to `Timer(start=True)`, `.start()`, or to `.log(reset=True)`.
+        Arguments can be stored by adding them to the function call. Will automatically call `.start()` again unless
+        `reset=False`
+        :param args: any arguments to store with this run
         :param runs: how many runs this log point is for
         :param iterations_per_run: how many iterations for each run this log point is for
         :param label: the label/name for the log point
-        :param reset: whether to call start() again or not
-        :param kwargs: any keyword arguments to log with the run
-        :return: the amount of time in seconds since the last call to start() or to log(reset=True)
+        :param reset: whether to call `.start()` again or not
+        :param time_unit: the time unit that will be used for the returned value
+        :param kwargs: any keyword arguments to store with the run
+        :return: the amount of time in `time_unit` since the timer was started
         """
         if self.log_base_point is None:
             raise RuntimeWarning("start() must be called before log() can be")
@@ -545,15 +566,16 @@ class Timer(BaseTimer):
         if reset:
             self.start()
 
-        return tm
+        return self._convert_time(tm, time_unit, round_it=False)
 
     def output(self, split_index: Union[int, str]=all, time_unit=BaseTimer.MS,
                transformers: Dict[Union[int, str], Union[callable, Dict[Union[int, str], callable]]]=()):
         """
-        Output all splits and all logged runs
+        Output all the logged runs for all of the splits or just the specified one. Transformers can be passed that will
+        be used to transform how logged arguments appear in the output.
         :param split_index: the split index/name to output. Defaults to all
-        :param time_unit: the time scale unit to output times in
-        :param transformers: either a dict mapping a split index or label to a dict, or just a dict mapping a keyword
+        :param time_unit: the time unit to output times in
+        :param transformers: either a map of a split index or label to a map or just a map of a keyword
                     argument name or positional argument index to a function. That function will be called and passed
                     the argument and the return value will be used to generate the output. If this is
                     str/int -> callable, then split_index must be specified
@@ -578,9 +600,9 @@ class Timer(BaseTimer):
              time_unit=BaseTimer.MS, y_label: str="Time", x_label: str=None, title: str=None, plot_curve: bool=False,
              curve: Tuple[str, dict]=None, curve_steps: int=100, equation_rounding: int=8):
         """
-        Plot the runs in the specified split or the most recent split if none is specified.
-        If there is more than one argument on the runs, then a key needs to be
-        provided. The argument's value must be an integer or a transformer must be provided.
+        Plot the runs in the specified split or the most recent split if none is specified. If there is more than one
+        argument logged for the runs, then a key needs to be provided to use as the independent variable. The argument's
+        value must be an integer or a transformer must be provided.
         :param split_index: the label or index of the split to plot
         :param key: the integer position or keyword name of the argument to use as the independent variable
         :param transformer: a transformer to make the independent variable an integer
@@ -588,11 +610,13 @@ class Timer(BaseTimer):
         :param y_label: the label for the y-axis, defaults to "Time"
         :param x_label: the label for the x-axis, default to None
         :param title: the title of the plot, defaults to the label of the split
-        :param plot_curve: plot the best fit curve, if curve=None, then the best fit curve will be determined, otherwise
-                    curve will be used
-        :param curve: the curve to plot, must be formatted (curve type, params), which is how best_fit_curve() returns
-        :param curve_steps: the number of points used when drawing the best fit curve
-        :param equation_rounding: the number of decimal places to round the equation to if a curve is graphed
+        :param plot_curve: plot the best fit curve. If `curve=None`, then the best fit curve will be determined.
+                    Otherwise, `curve` will be used. If the split has more than one logged argument or that argument is
+                    not an integer, then the curve will need to be determined separately.
+        :param curve: the curve to plot, must be formatted (curve type, params), which is how `.best_fit_curve()`
+                    returns it
+        :param curve_steps: the number of points used when drawing the best fit curve, if `plot_curve`
+        :param equation_rounding: the number of decimal places to round the equation to if `plot_curve`
         """
         if MISSING_MAT_PLOT:
             raise RuntimeWarning("matplotlib is needed for plotting and it couldn't be found")
@@ -679,13 +703,13 @@ class Timer(BaseTimer):
                   keys: Union[str, int, Dict[Union[str, int], Union[str, int]]]=None,
                   transformers: Union[callable, Dict[Union[str, int], callable]]=()):
         """
-        Sort the runs in a given split, or in all splits. Sorting will default to be by time, otherwise, it will sort
-        by the value of the positional argument or keyword argument specified by the key.
+        Sort the runs in a given split, or in all splits. Sorting will default to be by time. Otherwise, it will sort
+        by the value of the positional argument or keyword argument specified by the key(s).
         :param split_index: the name or label of the split to sort
         :param reverse: whether to reverse the sort order of the runs or not
-        :param keys: either a str name of a keyword argument or an int index of a positional argument. Or, a dict
-                    of split indexes/labels to a str name or index position of the argument to sort on
-        :param transformers: either a callable or a dict of split indexes/labels to callables where the key will be
+        :param keys: either a string name of a keyword argument or an integer index of a positional argument or a map
+                    of split indexes/labels to a string name or index position of the argument to sort on
+        :param transformers: either a callable or a map of split indexes/labels to callables, where the key will be
                     used to get a value which will then be passed to this callable and the return value will be used
                     when sorting.
         """
@@ -727,15 +751,16 @@ class Timer(BaseTimer):
 
     def start(self):
         """
-        Start the elapsed time. Must be called before log().
+        Start the elapsed time. Must be called before `.log()` unless `Timer(start=True)`.
         """
         self.log_base_point = self._time()
 
     def statistics(self, split_index: Union[int, str]=all, time_unit=BaseTimer.MS):
         """
-        Output statistics for each split. The statistics are the average, standard deviation, and variance
-        :param split_index: the index or name of the split to display statistics for, defaults to all
-        :param time_unit: the time scale unit to output times in
+        Output statistics for each split or for a specified split. The statistics are the number of runs, total time,
+        average, standard deviation, and variance
+        :param split_index: the index or label of the split to output statistics for, defaults to all
+        :param time_unit: the time unit to output times in
         """
         for i in range(len(self.splits)):
             split = self.splits[i]
@@ -778,34 +803,34 @@ class Timer(BaseTimer):
 
     def split(self, label: str="Split"):
         """
-        Create a new split that will be used for subsequent timings
-        :param label: the label for the new split
+        Create a new split that will be used for subsequent runs
+        :param label: the label of the new split
         """
         self.splits.append(Split(label=label))
 
     def time_it(self, block: Union[str, callable], *args, runs=1, iterations_per_run=1, call_callable_args=False,
                 log_arguments=False, split=True, split_label=None, globals: dict=(), locals: dict=(), **kwargs
-                ) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
+                ) -> any:
         """
-        Time a function or evaluate a string.
+        Measure the execution time of a function are string. Positional and keyword arguments can be passed through to
+        `block` if it is a function. `eval` is used if `block` is a string and so a namespace can be passed to it by
+        setting `globals` and/or `locals`.
         :param block: either a callable or a string
-        :param args: any positional arguments to pass into 'block' if it is callable
-        :param runs: the number of runs
-        :param iterations_per_run: the number of iterations for each run
-        :param call_callable_args: whether to replace any 'args' or 'kwargs' with the result of the function call if
-                    the argument is callable. Only valid if 'block' is callable.
-        :param log_arguments: whether to keep track of the arguments passed into 'block' so they can be displayed.
-                    Only valid if 'block' is callable
-        :param split: create a split that will be used for any runs create measuring the time of the wrapped function
-        :param split_label: what the name of the split will be. If None, then the label will be block.__name__ if
-                    block is callable. Otherwise, it will be the block itself.
-        :param globals: globals to use if block is a string
-        :param locals: locals to use if block is a string
-        :param kwargs: any keyword arguments to pass into 'block' if it is callable
-        :return: If 'display', just the return value of calling/executing 'block' is returned. Otherwise, a tuple of
-                    the return value and the measured time(s) is returned. If 'average', then a single time value is
-                    returned, otherwise, a list of time values, one for each run, is returned. Any returned times will
-                    be in 'time_unit'
+        :param args: any positional arguments to pass into `block` if it is callable
+        :param runs: the number of times to measure the execution time
+        :param iterations_per_run: the number of times to call/evaluate `block` for each run
+        :param call_callable_args: If True, then any `callable` in `args` or `kwargs` will be replaced with their
+                    return value. So `time_it(func, callable1, something=callable2)` will become
+                    `func(callable1(), something=callable2())`. Only useful if `block` is callable
+        :param log_arguments: whether to keep track of the arguments so they can be displayed at a later point or used
+                    for curve calculation. Only useful if `block` is callable
+        :param split: create a split that will be used for any runs created measuring the execution time of `block`
+        :param split_label: what the name of the new split will be. If None, then the label will be `block.__name__` if
+                    `block` is callable. Otherwise, it will be the block itself.
+        :param globals: a global namespace to pass to `eval` if `block` is a string
+        :param locals: a local namespace to pass to `eval` if `block` is a string
+        :param kwargs: any keyword arguments to pass into `block` if it is callable
+        :return: a return/result value of calling/evaluating `block`
         """
         value = None
         new_args, new_kwargs = args, kwargs

@@ -20,7 +20,7 @@ import logging
 class LoggingInfoWrapper:
     """
     Provides a basic wrapper around logging.info to allow it to act like a file-like object to be used
-    as an output stream in some of the functions below.
+    as an output stream for the timers
     """
     @staticmethod
     def write(message: str):
@@ -37,7 +37,7 @@ class LoggingInfoWrapper:
 class LoggingDebugWrapper:
     """
     Provides a basic wrapper around logging.debug to allow it to act like a file-like object to be used
-    as an output stream in some of the functions below.
+    as an output stream for the timers
     """
     @staticmethod
     def write(message: str):

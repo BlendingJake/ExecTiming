@@ -109,11 +109,12 @@ class BestFitBase:
 
 
 class BestFitExponential(BestFitBase):
+    """
+    Uses scipy.optimize.curve_fit to find `a` and `b` such that `a + b*e^x` best fits the data given. Can only handle a
+    single independent variable. Generated parameters are `a` and `b`
+    """
     @staticmethod
     def calculate_curve(points):
-        """
-        Use scipy.optimize.curve_fit with a + b*e^(x) to find a and b for this exponential curve
-        """
         flattened_args, matching_points = BestFitBase._flatten_args_separate_points(points)
         # set default params low as measured times can be very short
         values = curve_fit(lambda x, a, b: a + b*np.exp(x), [val[0] for val in flattened_args],
@@ -136,11 +137,13 @@ class BestFitExponential(BestFitBase):
 
 
 class BestFitLinear(BestFitBase):
+    """
+    Uses sklearn.linear_model.LinearRegression to determine coefficients for each of the independent variables and
+    the y-intercept. Generate parameters are the y-intercept, `b`, and coefficients where the key is the index of the
+    argument or its key depending on whether it is a positional or keyword argument, respectively.
+    """
     @staticmethod
     def calculate_curve(points):
-        """
-        Use sklearn.linear_model.LinearRegression to determine the variable coefficients and y-intercept
-        """
         flattened_args, matching_points = BestFitBase._flatten_args_separate_points(points)
 
         model = LinearRegression()
@@ -172,11 +175,12 @@ class BestFitLinear(BestFitBase):
 
 
 class BestFitLogarithmic(BestFitBase):
+    """
+    Use scipy.optimize.curve_fit to find `a` and `b` such that `a + b*log(x)` is best fitted to the data. Can only
+    handle a single independent variable. Generated parameters are `a` and `b`
+    """
     @staticmethod
     def calculate_curve(points):
-        """
-        Use scipy.optimize.curve_fit with a + b*log(x) to find a and b for this logarithmic curve
-        """
         flattened_args, matching_points = BestFitBase._flatten_args_separate_points(points)
         values = curve_fit(lambda x, a, b: a + b*np.log(x), [val[0] for val in flattened_args], matching_points)
 
@@ -197,11 +201,12 @@ class BestFitLogarithmic(BestFitBase):
 
 
 class BestFitPolynomial(BestFitBase):
+    """
+    Uses sklearn.preprocessing.PolynomialFeatures and sklearn.linear_model.LinearRegression to find the y-intercept `b`
+    and the coefficients `0`, `1`, and, `2` such that `b + 0*x^0 + 1*x + 2*x^2` is best fit to the data.
+    """
     @staticmethod
     def calculate_curve(points):
-        """
-        Use sklearn.linear_model.LinearRegression to determine the variable coefficients and y-intercept
-        """
         flattened_args, matching_points = BestFitBase._flatten_args_separate_points(points)
 
         poly_model = PolynomialFeatures(degree=2)
