@@ -853,7 +853,7 @@ class Timer(BaseTimer):
             st = StaticTimer._time()
             for _ in range(iterations_per_run):
                 if callable(block):
-                    value = block(*args, **kwargs)
+                    value = block(*new_args, **new_kwargs)
                 else:
                     value = eval(block, globals, locals)
 

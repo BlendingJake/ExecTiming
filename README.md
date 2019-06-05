@@ -107,8 +107,6 @@ timer = Timer()
 ```python
 @timer.decorate(runs=5, log_arguments=True, call_callable_args=True)
 def bubble_sort(array):
-    # print(len(array))
-
     while True:
         switched = False
         for i in range(0, len(array)-1):
