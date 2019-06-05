@@ -116,10 +116,9 @@ class TestPolynomial(unittest.TestCase):
 
         result = timer.best_fit_curve()
         self.assertEqual(result[0], "Polynomial")
+        self.assertEqual(round(result[1]["a"], 4), 1)
         self.assertEqual(round(result[1]["b"], 4), 1)
-        self.assertEqual(round(result[1][0], 4), 0)
-        self.assertEqual(round(result[1][1], 4), 1)
-        self.assertEqual(round(result[1][2], 4), 1)
+        self.assertEqual(round(result[1]["c"], 4), 1)
 
     def test_complicated(self):
         timer = Timer(split=True)
@@ -129,10 +128,9 @@ class TestPolynomial(unittest.TestCase):
 
         result = timer.best_fit_curve()
         self.assertEqual(result[0], "Polynomial")
-        self.assertEqual(round(result[1]["b"], 4), 4)
-        self.assertEqual(round(result[1][0], 4), 0)
-        self.assertEqual(round(result[1][1], 4), 2)
-        self.assertEqual(round(result[1][2], 4), 4)
+        self.assertEqual(round(result[1]["a"], 4), 4)
+        self.assertEqual(round(result[1]["b"], 4), 2)
+        self.assertEqual(round(result[1]["c"], 4), 4)
 
 
 if __name__ == "__main__":

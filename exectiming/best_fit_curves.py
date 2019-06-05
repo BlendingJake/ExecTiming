@@ -24,7 +24,6 @@ from typing import List, Tuple, Dict, Union
 
 try:
     from sklearn.linear_model import LinearRegression
-    from sklearn.preprocessing import PolynomialFeatures
     from scipy.optimize import curve_fit
     import numpy as np
 
@@ -170,7 +169,7 @@ class BestFitLinear(BestFitBase):
     def equation(parameters, rounding=8):
         return "y = {} + {}".format(
             parameters["b"],
-            " + ".join("{}*x_{}".format(round(value, rounding), key) for key, value in parameters.items() if key != "b")
+            " + ".join("{}x_{}".format(round(value, rounding), key) for key, value in parameters.items() if key != "b")
         )
 
 
@@ -202,42 +201,30 @@ class BestFitLogarithmic(BestFitBase):
 
 class BestFitPolynomial(BestFitBase):
     """
-    Uses sklearn.preprocessing.PolynomialFeatures and sklearn.linear_model.LinearRegression to find the y-intercept `b`
-    and the coefficients `0`, `1`, and, `2` such that `b + 0*x^0 + 1*x + 2*x^2` is best fit to the data.
+    Uses scipy.optimize.curve_fit to find the values `a`, `b`, and, `c` such that `ax^2 + bx + c` is best fit to the
+    data.
     """
     @staticmethod
     def calculate_curve(points):
         flattened_args, matching_points = BestFitBase._flatten_args_separate_points(points)
 
-        poly_model = PolynomialFeatures(degree=2)
-        values = poly_model.fit_transform(flattened_args)
+        values = curve_fit(lambda x, a, b, c: a*np.power(x, 2) + b*x + c, [val[0] for val in flattened_args],
+                           matching_points, p0=(0.000001, 0.000001, 0.000001))
 
-        values_model = LinearRegression()
-        values_model.fit(values, matching_points)
-
-        params = {"b": values_model.intercept_}
-        for i in range(len(values_model.coef_)):
-            params[i] = values_model.coef_[i]
-
-        return params
+        return {"a": values[0][0], "b": values[0][1], 0: 0, "c": values[0][2]}
 
     @staticmethod
     def calculate_point(arguments, parameters):
         x = next(iter(arguments.values()))
 
-        value = parameters["b"]
-        for key in parameters:
-            if key != "b":
-                value += parameters[key] * x**key
-
-        return value
+        return parameters["a"] * x**2 + parameters["b"]*x + parameters["c"]
 
     @staticmethod
     def equation(parameters, rounding=8):
-        return "y = {} + {}*x + {}*x^2".format(
+        return "y = {}x^2 + {}x + {}".format(
+            round(parameters["a"], rounding),
             round(parameters["b"], rounding),
-            round(parameters[1], rounding),
-            round(parameters[2], rounding)
+            round(parameters["c"], rounding)
         )
 
     @staticmethod
