@@ -27,7 +27,7 @@ argument calling and replacement, best-fit-curve determination, and in-project u
  elapsed time is measured.
  * Multiple runs can be carried out and averaged to remove outlying results.
 
-### [Wiki](https://github.com/BlendingJake/ExecTiming/wiki)
+# [Wiki](https://github.com/BlendingJake/ExecTiming/wiki)
 
 ## Glossary
  * [`Installation`](#install)
@@ -38,7 +38,7 @@ argument calling and replacement, best-fit-curve determination, and in-project u
 
 ### <a name="install">Installation</a>
 ```
-pip install -i https://test.pypi.org/simple/ exectiming-blendingjake
+pip install exectiming
 ```
 For full functionality:
 
