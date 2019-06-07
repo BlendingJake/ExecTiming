@@ -442,17 +442,28 @@ class Timer(BaseTimer):
         return adjusted_index
 
     def _str(self, split_index: Union[int, str]=all, time_unit=BaseTimer.MS,
-             transformers: Dict[Union[str, int], Dict[Union[str, int], callable]]=()) -> str:
+             transformers: Union[
+                   callable,
+                   Dict[Union[int, str], Union[callable, Dict[Union[int, str], callable]]]
+               ]=()) -> str:
         """
         Generate a string containing all splits or a specific one designated by index or label. List all runs for each
         split.
         :param split_index: the split index or label to output. Defaults to all
         :param time_unit: the time scale unit to output times in
-        :param transformers: a dict mapping a split index or label to a dict mapping a keyword argument name or
-                    positional argument index to a function. That function will be called and passed the argument and
-                    the return value will be used to generate the output
+        :param transformers: see `.output()` for detailed description.
         :return: a formatted string containing split and run information
         """
+        # FIGURE OUT TRANSFORMERS SITUATION
+        trans_op = None
+        if transformers:
+            if callable(transformers):
+                trans_op = 1
+            elif callable(next(iter(transformers.values()))):  # values are callable
+                trans_op = 2
+            else:
+                trans_op = 3
+
         string = []
         for i in range(len(self.splits)):
             split = self.splits[i]
@@ -465,20 +476,27 @@ class Timer(BaseTimer):
             string.append("{}:\n".format(split.label))
 
             for run in split.runs:
-                if transformers and (i in transformers or split.label in transformers):
-                    if i in transformers:
+                if transformers:
+                    # if we have transformers for each split, go ahead and get this split
+                    if trans_op == 2 and i in transformers:
                         split_transformers = transformers[i]
-                    else:
+                    elif trans_op == 2 and split.label in transformers:
                         split_transformers = transformers[split.label]
+                    else:
+                        split_transformers = transformers  # all transformers are for this split
 
                     args, kwargs = run.args[:], dict(run.kwargs)
 
                     for j in range(len(args)):
-                        if j in split_transformers:
+                        if trans_op == 1:  # we only have one function, so we transform everything with it
+                            args[j] = transformers(args[j])
+                        elif j in split_transformers:
                             args[j] = split_transformers[j](args[j])
 
                     for key in kwargs:
-                        if key in split_transformers:
+                        if trans_op == 1:  # we only have one function, so we transform everything with it
+                            kwargs[key] = transformers(kwargs[key])
+                        elif key in split_transformers:
                             kwargs[key] = split_transformers[key](kwargs[key])
                 else:
                     args, kwargs = run.args, run.kwargs
@@ -619,30 +637,32 @@ class Timer(BaseTimer):
         return self._convert_time(tm, time_unit, round_it=False)
 
     def output(self, split_index: Union[int, str]=all, time_unit=BaseTimer.MS,
-               transformers: Dict[Union[int, str], Union[callable, Dict[Union[int, str], callable]]]=()):
+               transformers: Union[
+                   callable,
+                   Dict[Union[int, str], Union[callable, Dict[Union[int, str], callable]]]
+               ]=()):
         """
         Output all the logged runs for all of the splits or just the specified one. Transformers can be passed that will
         be used to transform how logged arguments appear in the output.
         :param split_index: the split index/name to output. Defaults to all
         :param time_unit: the time unit to output times in
-        :param transformers: either a map of a split index or label to a map or just a map of a keyword
-                    argument name or positional argument index to a function. That function will be called and passed
-                    the argument and the return value will be used to generate the output. If this is
-                    str/int -> callable, then split_index must be specified
+        :param transformers: functions that will be used to modify how logged parameters appear in the output. By
+                    default, all parameters are just passed through `str`, but this allows more control. There are three
+                    ways transformers can be passed.
+                    1) It can be a single function, which only works when all parameters across all splits being output
+                        can be transformed with this function.
+                    2) It can be a map of argument indices/names to functions, which only works when all arguments with
+                        that index or name across all splits being output can be transformed with the given function.
+                    3) It can be a map of split indices/labels to a map like that in option 2).
+
+                    So `transformers=len`, `transformers={0: len, "array": sum}`, and
+                    `transformers={"binary_search": {0: len}, "adder": {"array": sum}}` are all valid.
         """
         if split_index != all:
             adjusted_index = self._adjust_split_index(split_index)
 
-            if adjusted_index is not None:
-                transformers = {adjusted_index: transformers}
-            else:
+            if adjusted_index is None:
                 raise RuntimeWarning("The split index '{}' is not a valid index or label".format(split_index))
-
-        # not a split index/label -> dict situation
-        if transformers and callable(next(iter(transformers.values()))) and split_index == all:
-            raise RuntimeWarning(
-                "'split_index' must be specified when 'transformers' is Dict[Union[str, int], callable]"
-            )
 
         self.output_stream.write(self._str(split_index=split_index, time_unit=time_unit, transformers=transformers))
 

@@ -222,6 +222,9 @@ timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude={1}, transformers
  * Additionally, the title and x-axis labels are specified and rounding set lower
 
 ## TODO
+ - [x] Change `.output()` to not require `split_index` if `transformers={0:len}`. 
+ Allow `transformers` to be just a function, if there is only one argument, or a map 
+ or a map of a map.
  - [x] Change `.sort_runs()` to reflect that values don't have to be integers, 
  they just have to be comparable. If they aren't, then a transformer is needed. 
  This change is mainly cosmetic. (BJ - nothing actually needed changed)

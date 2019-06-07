@@ -211,11 +211,6 @@ class TestTimerBasic(unittest.TestCase):
         self.assertRaisesRegex(RuntimeWarning, "The split index 'test' is not a valid index or label",
                                timer.output, "test")
 
-    def test_output_simple_transformers_with_all_splits(self):
-        timer = Timer()
-        self.assertRaisesRegex(RuntimeWarning, "'split_index' must be specified when 'transformers' is",
-                               timer.output, transformers={"test": len})
-
     def test_output_basic(self):
         out = StringIO()
 
