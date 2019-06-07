@@ -222,6 +222,9 @@ timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude={1}, transformers
  * Additionally, the title and x-axis labels are specified and rounding set lower
 
 ## TODO
+ - [x] Change `.sort_runs()` to reflect that values don't have to be integers, 
+ they just have to be comparable. If they aren't, then a transformer is needed. 
+ This change is mainly cosmetic. (BJ - nothing actually needed changed)
  - [x] Add `.predict(params, arguments)` to `Timer`. Should basically be a
  pass-through call to `.calculate_point()` on the correct best-fit-curve
  - [x] Collapse `exclude_args` and `exclude_kwargs` down into just `exclude`.
