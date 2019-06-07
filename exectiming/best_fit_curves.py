@@ -27,11 +27,10 @@ try:
     from scipy.optimize import curve_fit
     import numpy as np
 
+    np.seterr(divide="ignore")
     MISSING_CURVE_FITTING = False
 except ImportError:
     MISSING_CURVE_FITTING = True
-
-np.seterr(divide="ignore")
 
 
 class BestFitBase:
@@ -117,7 +116,7 @@ class BestFitExponential(BestFitBase):
         flattened_args, matching_points = BestFitBase._flatten_args_separate_points(points)
         # set default params low as measured times can be very short
         values = curve_fit(lambda x, a, b: a + b*np.exp(x), [val[0] for val in flattened_args],
-                           matching_points, p0=(0.000001, 0.000001))
+                           matching_points, p0=(0.0000001, 0.0000001))
 
         return {"a": values[0][0], "b": values[0][1]}
 
@@ -128,7 +127,7 @@ class BestFitExponential(BestFitBase):
 
     @staticmethod
     def equation(parameters, rounding=8):
-        return "y = {} + {}*e^x".format(round(parameters["a"], rounding), round(parameters["b"], rounding))
+        return "y = {} + {}e^x".format(round(parameters["a"], rounding), round(parameters["b"], rounding))
 
     @staticmethod
     def poll(points):

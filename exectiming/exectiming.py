@@ -493,16 +493,15 @@ class Timer(BaseTimer):
 
         return "".join(string)
 
-    def best_fit_curve(self, curve_type: str=any, exclude_args: Set[int]=(), exclude_kwargs: set=(),
-                       split_index: Union[int, str]=-1, transformers: Dict[Union[str, int], callable]=()
-                       ) -> Union[None, Tuple[str, dict]]:
+    def best_fit_curve(self, curve_type: str=any, exclude: Set[Union[str, int]]=(), split_index: Union[int, str]=-1,
+                       transformers: Dict[Union[str, int], callable]=()) -> Union[None, Tuple[str, dict]]:
         """
         Determine the best fit curve for a split using logged arguments as the independent variable and the measured
         time as the dependent variable. By default, the most recent split is used. All non-excluded arguments must have
         integer values to allow curve calculation. If the values are not integers, then they must be transformed.
         :param curve_type: specify a specific curve type to determine the parameters for
-        :param exclude_args: the indices of the positional arguments to exclude when performing curve calculation
-        :param exclude_kwargs: the keys of the keyword arguments to exclude when performing curve calculation
+        :param exclude: the indices of the positional arguments or keys of keyword arguments to exclude when performing
+                    curve calculation
         :param split_index: The index or name of the split to determine the best fit curve for
         :param transformers: functions that take an argument and return an integer, as integers are needed for
                 determining the best fit curve. Positional arguments are denoted with integer keys denoting the position
@@ -512,8 +511,7 @@ class Timer(BaseTimer):
         """
         adjusted_index = -1 if split_index == -1 else self._adjust_split_index(split_index)
         if adjusted_index is not None:
-            return self.splits[adjusted_index].determine_best_fit(curve_type=curve_type, exclude_args=exclude_args,
-                                                                  exclude_kwargs=exclude_kwargs,
+            return self.splits[adjusted_index].determine_best_fit(curve_type=curve_type, exclude=exclude,
                                                                   transformers=transformers)
         else:
             raise RuntimeWarning("The split index/label {} is out of bounds/could not be found".format(adjusted_index))

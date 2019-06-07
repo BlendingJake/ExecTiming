@@ -19,13 +19,22 @@ class TestConsistentFeatures(unittest.TestCase):
                                curve_type="Test")
 
     def test_specific(self):
-        timer = Timer(split=True, start=True)
+        timer = Timer(split=True)
         timer.splits[-1].add_run(Run(time=e ** 2, runs=1, iterations_per_run=1, label=str(2), args=(2,)))
         timer.splits[-1].add_run(Run(time=e ** 5, runs=1, iterations_per_run=1, label=str(5), args=(5,)))
         timer.splits[-1].add_run(Run(time=e ** 8, runs=1, iterations_per_run=1, label=str(8), args=(8,)))
 
         # would normally return Exponential, make sure it doesn't
         self.assertEqual(timer.best_fit_curve(curve_type="Linear")[0], "Linear")
+
+    def test_exclude(self):
+        timer = Timer(split=True, start=True)
+
+        timer.log(5, {"age": 5}, name="Arthur")
+        timer.log(23, {"age": 34}, name="Roger")
+        timer.log(543, {"age": 43}, name="Sara")
+
+        self.assertNotEqual(timer.best_fit_curve(exclude={1, "name"}), None)  # make sure we actually found a curve
 
 
 class TestExponential(unittest.TestCase):
@@ -79,8 +88,8 @@ class TestLinear(unittest.TestCase):
 
         result = timer.best_fit_curve()
         self.assertEqual(result[0], "Linear")
-        self.assertEqual(result[1]["b"], 0)
-        self.assertEqual(result[1]["x_0"], 1)
+        self.assertEqual(round(result[1]["b"], 5), 0)
+        self.assertEqual(round(result[1]["x_0"], 5), 1)
 
     def test_multi_variable(self):
         timer = Timer(split=True)

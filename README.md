@@ -90,10 +90,10 @@ StaticTimer.time_it("2**64", runs=5, iterations_per_run=10000)
  * Multiple runs can be measured then averaged together to get a more accurate result
  * Any needed `globals` or `locals` can be specified by passing `globals=` and `locals=`
 
- `time_it` can be used to re-write the decorator above example like so:
- ```python
- StaticTimer.time_it(factorial, lambda: randint(3, 40), call_callable_args=True, average_runs=False, runs=5, log_arguments=True)
- ```
+`time_it` can be used to re-write the decorator above example like so:
+```python
+StaticTimer.time_it(factorial, lambda: randint(3, 40), call_callable_args=True, average_runs=False, runs=5, log_arguments=True)
+```
 
 ### Assume
 ```python
@@ -208,7 +208,7 @@ def binary_search(sorted_array, element):
     return None  # couldn't find it
 
 binary_search(lambda: [i for i in range(randint(0, 10000))], lambda: randint(0, 10000))
-timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude_args={1}, transformers={0: len}), key=0,
+timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude={1}, transformers={0: len}), key=0,
            transformer=len, time_unit=timer.US, x_label="List Length", equation_rounding=4,
            title="Binary Search - Random Size, Random Element")
 ```
@@ -224,7 +224,7 @@ timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude_args={1}, transfo
 ## TODO
  - [ ] Add `.predict(params, arguments)` to `Timer`. Should basically be a
  pass-through call to `.calculate_point()` on the correct best-fit-curve
- - [ ] Collapse `exclude_args` and `exclude_kwargs` down into just `exclude`.
+ - [x] Collapse `exclude_args` and `exclude_kwargs` down into just `exclude`.
  The difference between positional and keyword arguments can be determined as
  int vs. str.
  - [x] Change how coefficients are returned for `BestFitLinear`, maybe use
