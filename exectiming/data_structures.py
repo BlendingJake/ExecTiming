@@ -52,7 +52,7 @@ class Split:
         else:
             return 0
 
-    def determine_best_fit(self, curve_type: str=any, exclude_args: Set[int]=(), exclude_kwargs: set=(),
+    def determine_best_fit(self, curve_type: str=any, exclude: Set[Union[str, int]]=(),
                            transformers: Dict[Union[int, str], callable]=()) -> Union[None, Tuple[str, dict]]:
         """
         Determine the best fit curve for the runs contained in this split.
@@ -77,12 +77,9 @@ class Split:
                     if key in transformers:
                         new_kwargs[key] = transformers[key](new_kwargs[key])
 
-            # EXCLUDE ARGUMENTS
-            collapsed = dict((i, new_args[i]) for i in range(len(new_args)) if i not in exclude_args)
-
-            for key in new_kwargs:
-                if key not in exclude_kwargs:
-                    collapsed[key] = new_kwargs[key]
+            # ONLY KEEP NON-EXCLUDED ARGUMENTS
+            collapsed = dict((i, new_args[i]) for i in range(len(new_args)) if i not in exclude)
+            collapsed.update(dict((key, value) for key, value in new_kwargs.items() if key not in exclude))
 
             points.append((collapsed, run.time))
 
@@ -90,7 +87,7 @@ class Split:
             best: Tuple[float, str, dict] = None  # tuple of distance, name, and parameters
             for bfc_name, bfc in self.best_fit_curves.items():
                 if not bfc.poll(points):
-                    return
+                    continue
 
                 params = bfc.calculate_curve(points)
 

@@ -19,6 +19,7 @@ from typing import Union, Tuple, List, TextIO, Dict, Set
 from functools import wraps
 from sys import stdout
 from .data_structures import Run, Split
+from contextlib import contextmanager
 
 try:
     import matplotlib.pyplot as plt
@@ -29,7 +30,6 @@ except ImportError:
 
 class BaseTimer:
     S, MS, US, NS = "s", "ms", "us", "ns"
-    ROUNDING = 5
     _conversion = {S: 1, MS: 10**3, US: 10**6, NS: 10**9}
     _time = perf_counter
 
@@ -58,18 +58,19 @@ class BaseTimer:
         return out_args, out_kwargs
 
     @staticmethod
-    def _convert_time(time: float, unit: str, round_it=True) -> float:
+    def _convert_time(time: float, time_unit: str, round_it=True, rounding=5) -> float:
         """
         Convert and round a time from BaseTimer._time to the unit specified
         :param time: the amount of time, in fractional seconds if using perf_counter()
-        :param unit: the unit to convert to, in BaseTimer.[S | MS | US | NS]
+        :param time_unit: the unit to convert to, in BaseTimer.[S | MS | US | NS]
         :param round_it: whether to round or not
+        :param rounding: the amount to round
         :return: the converted and rounded time
         """
         if round_it:
-            return round(time * BaseTimer._conversion[unit], BaseTimer.ROUNDING)
+            return round(time * BaseTimer._conversion[time_unit], rounding)
         else:
-            return time * BaseTimer._conversion[unit]
+            return time * BaseTimer._conversion[time_unit]
 
     @staticmethod
     def _display_message(message: str, output_stream: TextIO=stdout):
@@ -81,15 +82,15 @@ class BaseTimer:
         output_stream.write(message + "\n")
 
     @staticmethod
-    def _format_output(label: str, runs: int, iterations: int, time: float, unit: str, args: Union[None, list]=(),
-                       kwargs: Union[None, dict]=(), message: str="") -> str:
+    def _format_output(label: str, runs: int, iterations_per_run: int, time: float, time_unit: str,
+                       args: Union[None, list]=(), kwargs: Union[None, dict]=(), message: str="") -> str:
         """
         Build up a string message based on the input parameters
         :param label: the name of the function, part of the string being timed, or label of the call
         :param runs: the number of runs
-        :param iterations: the number of iterations
+        :param iterations_per_run: the number of iterations
         :param time: the measured time value
-        :param unit: the unit the time value needs to be displayed in
+        :param time_unit: the unit the time value needs to be displayed in
         :param args: if it was a function, the positional arguments that were passed when it was called
         :param kwargs: if it was a function, the keyword arguments that were passed when it was called
         :param message: a message to display if there is one
@@ -112,9 +113,14 @@ class BaseTimer:
         if message:
             message = "| {}".format(message)
 
-        return "{:>10.5f} {:2} - {} [runs={:3}, iterations={:3}] {:<20.20}".format(BaseTimer._convert_time(time, unit),
-                                                                                   unit, name_part, runs, iterations,
-                                                                                   message)
+        return "{:>10.5f} {:2} - {} [runs={:3}, iterations={:3}] {:<20.20}".format(
+            BaseTimer._convert_time(time, time_unit),
+            time_unit,
+            name_part,
+            runs,
+            iterations_per_run,
+            message
+        )
 
 
 class StaticTimer(BaseTimer):
@@ -138,6 +144,31 @@ class StaticTimer(BaseTimer):
             respectively.
     """
     _elapsed_time = None
+
+    @staticmethod
+    @contextmanager
+    def context(*args, runs=1, iterations_per_run=1, label="Context", time_unit=BaseTimer.MS,
+                output_stream: TextIO=stdout, **kwargs):
+        """
+        Provides a context manager that can be used with a `with` statement as `with StaticTimer.context():`. The only
+        option is to output the measured time.
+        :param args: any arguments to log with the run
+        :param runs: the number of runs that were performed. THIS IS ONLY FOR LOGGING PURPOSES.
+        :param iterations_per_run: the number of iterations that were performed. THIS IS ONLY FOR LOGGING PURPOSES.
+        :param label: the label for the run
+        :param time_unit: the time unit to use for the output
+        :param output_stream: the file-like object to write the output to
+        :param kwargs: any keyword arguments to log with the run
+        """
+        tm = StaticTimer._time()
+        yield
+
+        dif = StaticTimer._time() - tm
+        StaticTimer._display_message(
+            StaticTimer._format_output(label=label, time=dif, runs=runs, iterations_per_run=iterations_per_run,
+                                       args=list(args), kwargs=kwargs, time_unit=time_unit),
+            output_stream=output_stream
+        )
 
     @staticmethod
     def decorate(runs=1, iterations_per_run=1, average_runs=True, display=True, time_unit=BaseTimer.MS,
@@ -411,17 +442,28 @@ class Timer(BaseTimer):
         return adjusted_index
 
     def _str(self, split_index: Union[int, str]=all, time_unit=BaseTimer.MS,
-             transformers: Dict[Union[str, int], Dict[Union[str, int], callable]]=()) -> str:
+             transformers: Union[
+                   callable,
+                   Dict[Union[int, str], Union[callable, Dict[Union[int, str], callable]]]
+               ]=()) -> str:
         """
         Generate a string containing all splits or a specific one designated by index or label. List all runs for each
         split.
         :param split_index: the split index or label to output. Defaults to all
         :param time_unit: the time scale unit to output times in
-        :param transformers: a dict mapping a split index or label to a dict mapping a keyword argument name or
-                    positional argument index to a function. That function will be called and passed the argument and
-                    the return value will be used to generate the output
+        :param transformers: see `.output()` for detailed description.
         :return: a formatted string containing split and run information
         """
+        # FIGURE OUT TRANSFORMERS SITUATION
+        trans_op = None
+        if transformers:
+            if callable(transformers):
+                trans_op = 1
+            elif callable(next(iter(transformers.values()))):  # values are callable
+                trans_op = 2
+            else:
+                trans_op = 3
+
         string = []
         for i in range(len(self.splits)):
             split = self.splits[i]
@@ -434,44 +476,51 @@ class Timer(BaseTimer):
             string.append("{}:\n".format(split.label))
 
             for run in split.runs:
-                if transformers and (i in transformers or split.label in transformers):
-                    if i in transformers:
+                if transformers:
+                    # if we have transformers for each split, go ahead and get this split
+                    split_transformers = None
+                    if trans_op == 3 and i in transformers:
                         split_transformers = transformers[i]
-                    else:
+                    elif trans_op == 3 and split.label in transformers:
                         split_transformers = transformers[split.label]
+                    elif trans_op == 2:
+                        split_transformers = transformers  # all transformers are for this split
 
-                    args, kwargs = run.args[:], dict(run.kwargs)
+                    args, kwargs = list(run.args), dict(run.kwargs)
 
                     for j in range(len(args)):
-                        if j in split_transformers:
+                        if trans_op == 1:  # we only have one function, so transform everything with it
+                            args[j] = transformers(args[j])
+                        elif j in split_transformers:
                             args[j] = split_transformers[j](args[j])
 
                     for key in kwargs:
-                        if key in split_transformers:
+                        if trans_op == 1:  # we only have one function, so transform everything with it
+                            kwargs[key] = transformers(kwargs[key])
+                        elif key in split_transformers:
                             kwargs[key] = split_transformers[key](kwargs[key])
                 else:
                     args, kwargs = run.args, run.kwargs
 
                 string.append("{}{}\n".format(
                     self.indent,
-                    self._format_output(label=run.label, runs=run.runs, iterations=run.iterations_per_run,
-                                        time=run.time, unit=time_unit, args=args, kwargs=kwargs)
+                    self._format_output(label=run.label, runs=run.runs, iterations_per_run=run.iterations_per_run,
+                                        time=run.time, time_unit=time_unit, args=args, kwargs=kwargs)
                 ))
 
             string.append("\n")
 
         return "".join(string)
 
-    def best_fit_curve(self, curve_type: str=any, exclude_args: Set[int]=(), exclude_kwargs: set=(),
-                       split_index: Union[int, str]=-1, transformers: Dict[Union[str, int], callable]=()
-                       ) -> Union[None, Tuple[str, dict]]:
+    def best_fit_curve(self, curve_type: str=any, exclude: Set[Union[str, int]]=(), split_index: Union[int, str]=-1,
+                       transformers: Dict[Union[str, int], callable]=()) -> Union[None, Tuple[str, dict]]:
         """
         Determine the best fit curve for a split using logged arguments as the independent variable and the measured
         time as the dependent variable. By default, the most recent split is used. All non-excluded arguments must have
         integer values to allow curve calculation. If the values are not integers, then they must be transformed.
         :param curve_type: specify a specific curve type to determine the parameters for
-        :param exclude_args: the indices of the positional arguments to exclude when performing curve calculation
-        :param exclude_kwargs: the keys of the keyword arguments to exclude when performing curve calculation
+        :param exclude: the indices of the positional arguments or keys of keyword arguments to exclude when performing
+                    curve calculation
         :param split_index: The index or name of the split to determine the best fit curve for
         :param transformers: functions that take an argument and return an integer, as integers are needed for
                 determining the best fit curve. Positional arguments are denoted with integer keys denoting the position
@@ -481,11 +530,31 @@ class Timer(BaseTimer):
         """
         adjusted_index = -1 if split_index == -1 else self._adjust_split_index(split_index)
         if adjusted_index is not None:
-            return self.splits[adjusted_index].determine_best_fit(curve_type=curve_type, exclude_args=exclude_args,
-                                                                  exclude_kwargs=exclude_kwargs,
+            return self.splits[adjusted_index].determine_best_fit(curve_type=curve_type, exclude=exclude,
                                                                   transformers=transformers)
         else:
             raise RuntimeWarning("The split index/label {} is out of bounds/could not be found".format(adjusted_index))
+
+    @contextmanager
+    def context(self, *args, runs=1, iterations_per_run=1, label="Context", **kwargs):
+        """
+        Provides a context manager that can be used with a `with` statement as `with Timer.context():`. The measured
+        time is logged and is not returned. If there is no split, then a RuntimeWarning will be raised.
+        :param args: any arguments to log with the run
+        :param runs: the number of runs that were performed. THIS IS ONLY FOR LOGGING PURPOSES.
+        :param iterations_per_run: the number of iterations that were performed. THIS IS ONLY FOR LOGGING PURPOSES.
+        :param label: the label for the run
+        :param kwargs: any keyword arguments to log with the run
+        """
+        if not self.splits:
+            raise RuntimeWarning("There must be a split created before any times can be logged.")
+
+        tm = self._time()
+        yield
+
+        dif = self._time() - tm
+        self.splits[-1].add_run(Run(label=label, time=dif, runs=runs, iterations_per_run=iterations_per_run,
+                                    args=args, kwargs=kwargs))
 
     def decorate(self, runs=1, iterations_per_run=1, call_callable_args=False, log_arguments=False, split=True,
                  split_label: str=None) -> callable:
@@ -569,30 +638,32 @@ class Timer(BaseTimer):
         return self._convert_time(tm, time_unit, round_it=False)
 
     def output(self, split_index: Union[int, str]=all, time_unit=BaseTimer.MS,
-               transformers: Dict[Union[int, str], Union[callable, Dict[Union[int, str], callable]]]=()):
+               transformers: Union[
+                   callable,
+                   Dict[Union[int, str], Union[callable, Dict[Union[int, str], callable]]]
+               ]=()):
         """
         Output all the logged runs for all of the splits or just the specified one. Transformers can be passed that will
         be used to transform how logged arguments appear in the output.
         :param split_index: the split index/name to output. Defaults to all
         :param time_unit: the time unit to output times in
-        :param transformers: either a map of a split index or label to a map or just a map of a keyword
-                    argument name or positional argument index to a function. That function will be called and passed
-                    the argument and the return value will be used to generate the output. If this is
-                    str/int -> callable, then split_index must be specified
+        :param transformers: functions that will be used to modify how logged parameters appear in the output. By
+                    default, all parameters are just passed through `str`, but this allows more control. There are three
+                    ways transformers can be passed.
+                    1) It can be a single function, which only works when all parameters across all splits being output
+                        can be transformed with this function.
+                    2) It can be a map of argument indices/names to functions, which only works when all arguments with
+                        that index or name across all splits being output can be transformed with the given function.
+                    3) It can be a map of split indices/labels to a map like that in option 2).
+
+                    So `transformers=len`, `transformers={0: len, "array": sum}`, and
+                    `transformers={"binary_search": {0: len}, "adder": {"array": sum}}` are all valid.
         """
         if split_index != all:
             adjusted_index = self._adjust_split_index(split_index)
 
-            if adjusted_index is not None:
-                transformers = {adjusted_index: transformers}
-            else:
+            if adjusted_index is None:
                 raise RuntimeWarning("The split index '{}' is not a valid index or label".format(split_index))
-
-        # not a split index/label -> dict situation
-        if transformers and callable(next(iter(transformers.values()))) and split_index == all:
-            raise RuntimeWarning(
-                "'split_index' must be specified when 'transformers' is Dict[Union[str, int], callable]"
-            )
 
         self.output_stream.write(self._str(split_index=split_index, time_unit=time_unit, transformers=transformers))
 
@@ -698,6 +769,27 @@ class Timer(BaseTimer):
             plt.xlabel(x_label)
 
         plt.show()
+
+    def predict(self, parameters: Tuple[str, dict], *args, time_unit=BaseTimer.MS, rounding=8, **kwargs) -> float:
+        """
+        Predict the execution time based on the given best fit curve and the parameters being passed in. All argument
+        values must be integers and they must correspond in position or name to how the best-fit-curve was determined
+        :param parameters: the curve type and parameters of the best-fit-curve. Should be the exact result of a call to
+                    `.best_fit_curve()`
+        :param args: any positional arguments needed when predicting the execution time.
+        :param time_unit: the time unit to return the execution time in
+        :param rounding: how much to round the predicted execution time
+        :param kwargs: any keyword arguments to use when predicting the execution time
+        :return: the predicted execution time
+        """
+        if parameters[0] not in Split.best_fit_curves:
+            raise RuntimeWarning("{} is not a valid curve type".format(parameters[0]))
+
+        collapsed = dict(kwargs)
+        collapsed.update(dict((i, args[i]) for i in range(len(args))))
+
+        tm = Split.best_fit_curves[parameters[0]].calculate_point(collapsed, parameters[1])
+        return self._convert_time(tm, time_unit, rounding=rounding)
 
     def sort_runs(self, split_index: Union[str, int]=all, reverse: bool=False,
                   keys: Union[str, int, Dict[Union[str, int], Union[str, int]]]=None,

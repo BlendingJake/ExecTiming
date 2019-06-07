@@ -7,6 +7,24 @@ from time import sleep
 
 
 class TestStaticBasic(unittest.TestCase):
+    def test_context(self):
+        out = StringIO()
+
+        with StaticTimer.context(output_stream=out):
+            sleep(0.01)
+
+        self.assertEqual(out.getvalue().rstrip()[11:],
+                         "ms - Context                                    [runs=  1, iterations=  1]")
+
+    def test_context_with_args(self):
+        out = StringIO()
+
+        with StaticTimer.context(7, 10, test="test_value", label="Sleep", output_stream=out):
+            sleep(0.01)
+
+        self.assertEqual(out.getvalue().rstrip()[11:],
+                         "ms - Sleep(7, 10, test=test_value)              [runs=  1, iterations=  1]")
+
     def test_decorate(self):
         out = StringIO()
 
@@ -126,6 +144,24 @@ class TestStaticBasic(unittest.TestCase):
 
 
 class TestTimerBasic(unittest.TestCase):
+    def test_context(self):
+        timer = Timer(split=True)
+
+        with timer.context():
+            sleep(0.01)
+
+        self.assertEqual(timer.splits[-1].runs[-1].label, "Context")
+
+    def test_context_with_args(self):
+        timer = Timer(split=True)
+
+        with timer.context(7, 10, test="test_value", label="Sleep"):
+            sleep(0.01)
+
+        self.assertEqual(timer.splits[-1].runs[-1].label, "Sleep")
+        self.assertEqual(timer.splits[-1].runs[-1].args, (7, 10))
+        self.assertEqual(timer.splits[-1].runs[-1].kwargs, {"test": "test_value"})
+
     def test_decorate_basic(self):
         timer = Timer()
 
@@ -175,11 +211,6 @@ class TestTimerBasic(unittest.TestCase):
         self.assertRaisesRegex(RuntimeWarning, "The split index 'test' is not a valid index or label",
                                timer.output, "test")
 
-    def test_output_simple_transformers_with_all_splits(self):
-        timer = Timer()
-        self.assertRaisesRegex(RuntimeWarning, "'split_index' must be specified when 'transformers' is",
-                               timer.output, transformers={"test": len})
-
     def test_output_basic(self):
         out = StringIO()
 
@@ -203,6 +234,53 @@ class TestTimerBasic(unittest.TestCase):
         lines = out.getvalue().split("\n")
         self.assertEqual(lines[0], "Split:")
         self.assertEqual(lines[1][17:], " - {:42} [runs=  1, iterations=  1] {:<20}".format("Test(5, 6, array=10)", ""))
+
+    def test_output_single_transformer(self):
+        out = StringIO()
+
+        timer = Timer(split=True, output_stream=out)
+        timer.splits[-1].add_run(Run(time=1, label="Test", runs=1, iterations_per_run=1, args=([1, 3, 2], )))
+
+        timer.output(transformers=sum, time_unit=timer.S)
+        self.assertIn("1.00000 s  - Test(6)", out.getvalue())
+
+    def test_output_multiple_transformers(self):
+        out = StringIO()
+
+        timer = Timer(split=True, output_stream=out)
+        timer.splits[-1].add_run(Run(time=1, label="Test", runs=1, iterations_per_run=1, args=(4, [1, 3, 2]),
+                                     kwargs={"test": [1, 4]}))
+
+        timer.output(transformers={1: sum, "test": len}, time_unit=timer.S)
+        self.assertIn("1.00000 s  - Test(4, 6, test=2)", out.getvalue())
+
+    def test_output_multiple_split_transformers(self):
+        out = StringIO()
+
+        timer = Timer(split=True, output_stream=out, label="test1")
+        timer.splits[-1].add_run(Run(time=1, label="Test1", runs=1, iterations_per_run=1, kwargs={"test": [1, 4]}))
+
+        timer.split(label="test2")
+        timer.splits[-1].add_run(Run(time=1, label="Test2", runs=1, iterations_per_run=1, args=(4, [1, 3, 2])))
+
+        timer.output(transformers={"test1": {"test": sum}, "test2": {1: len}}, time_unit=timer.S)
+        self.assertIn("1.00000 s  - Test1(test=5)", out.getvalue())
+        self.assertIn("1.00000 s  - Test2(4, 3)", out.getvalue())
+
+    def test_predict_invalid(self):
+        timer = Timer()
+        self.assertRaisesRegex(RuntimeWarning, "test is not a valid curve type", timer.predict, ("test", {}))
+
+    def test_predict_linear(self):
+        timer = Timer()
+        result = timer.predict(
+            ("Linear", {"b": 4, "x_0": 2, "x_test": 4}),
+            2,
+            test=3,
+            time_unit=timer.S
+        )
+
+        self.assertEqual(result, 2*2 + 4*3 + 4)
 
     def test_sort_basic(self):
         timer = Timer(split=True)

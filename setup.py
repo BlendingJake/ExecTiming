@@ -21,10 +21,10 @@ with open("README.md", "r") as file:
 
 setuptools.setup(
     name="exectiming",
-    version="2.0.0rc3",
+    version="2.0.0rc4",
     author="Jacob Morris",
     author_email="blendingjake@gmail.com",
-    description="A Python package for measuring the execution time of code",
+    description="A Python module for measuring the execution time of code",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/blendingjake/exectiming",
@@ -41,5 +41,5 @@ setuptools.setup(
         "numpy",
         "matplotlib"
     ],
-    python_requires=">=3"
+    python_requires=">=3.3"
 )
