@@ -227,7 +227,7 @@ timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude_args={1}, transfo
  - [ ] Collapse `exclude_args` and `exclude_kwargs` down into just `exclude`.
  The difference between positional and keyword arguments can be determined as
  int vs. str.
- - [ ] Change how coefficients are returned for `BestFitLinear`, maybe use
+ - [x] Change how coefficients are returned for `BestFitLinear`, maybe use
  **x<sub>index/key</sub>**
  - [x] Add context manager
  - [x] Make scipy, numpy, and scikit-learn optional, just prohibit `best_fit_curve` if they aren't there
