@@ -90,7 +90,7 @@ class Split:
             best: Tuple[float, str, dict] = None  # tuple of distance, name, and parameters
             for bfc_name, bfc in self.best_fit_curves.items():
                 if not bfc.poll(points):
-                    return
+                    continue
 
                 params = bfc.calculate_curve(points)
 

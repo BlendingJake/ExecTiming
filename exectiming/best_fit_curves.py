@@ -88,7 +88,7 @@ class BestFitBase:
     @staticmethod
     def poll(points: List[Tuple[Dict[Union[str, int], int], float]]) -> bool:
         """
-        Determine if this best fit method will work with the given data
+        Return True if this best-fit-curve type can operate on these data points. Otherwise, return False
         """
         return not MISSING_CURVE_FITTING
 
@@ -138,8 +138,8 @@ class BestFitExponential(BestFitBase):
 class BestFitLinear(BestFitBase):
     """
     Uses sklearn.linear_model.LinearRegression to determine coefficients for each of the independent variables and
-    the y-intercept. Generate parameters are the y-intercept, `b`, and coefficients where the key is the index of the
-    argument or its key depending on whether it is a positional or keyword argument, respectively.
+    the y-intercept. Generate parameters are the y-intercept, `b`, and coefficients where the key is
+    `x_index/key`. The index or key is the index of a positional argument or the name of a keyword argument.
     """
     @staticmethod
     def calculate_curve(points):
@@ -150,8 +150,8 @@ class BestFitLinear(BestFitBase):
 
         params = {"b": model.intercept_}
         i = 0
-        for key in range(len(points[0][0])):
-            params[key] = model.coef_[i]
+        for key in points[0][0]:  # for all the keys, assuming stable iteration
+            params["x_{}".format(key)] = model.coef_[i]
             i += 1
 
         return params
@@ -161,7 +161,7 @@ class BestFitLinear(BestFitBase):
         value = parameters["b"]
 
         for key in arguments:
-            value += arguments[key] * parameters[key]
+            value += arguments[key] * parameters["x_{}".format(key)]
 
         return value
 
@@ -169,7 +169,7 @@ class BestFitLinear(BestFitBase):
     def equation(parameters, rounding=8):
         return "y = {} + {}".format(
             round(parameters["b"], rounding),
-            " + ".join("{}x_{}".format(round(value, rounding), key) for key, value in parameters.items() if key != "b")
+            " + ".join("{}{}".format(round(value, rounding), key) for key, value in parameters.items() if key != "b")
         )
 
 

@@ -69,7 +69,7 @@ class TestLinear(unittest.TestCase):
         result = timer.best_fit_curve()
         self.assertEqual(result[0], "Linear")
         self.assertEqual(result[1]["b"], 4)
-        self.assertEqual(result[1][0], 0)
+        self.assertEqual(result[1]["x_0"], 0)
 
     def test_sloped(self):
         timer = Timer(split=True)
@@ -80,7 +80,22 @@ class TestLinear(unittest.TestCase):
         result = timer.best_fit_curve()
         self.assertEqual(result[0], "Linear")
         self.assertEqual(result[1]["b"], 0)
-        self.assertEqual(result[1][0], 1)
+        self.assertEqual(result[1]["x_0"], 1)
+
+    def test_multi_variable(self):
+        timer = Timer(split=True)
+
+        for y, args, kwargs in ((1, (7, 12), {"a": 54}), (10, (43, 25), {"a": 65}), (35, (65, 43), {"a": 76})):
+            timer.splits[-1].add_run(Run(time=y, runs=1, iterations_per_run=1, label=str(y), args=args, kwargs=kwargs))
+
+        result = timer.best_fit_curve()
+        self.assertEqual(result[0], "Linear")
+
+        # don't care about the values, just want to make sure all the keys are there
+        self.assertIn("b", result[1])
+        self.assertIn("x_0", result[1])
+        self.assertIn("x_1", result[1])
+        self.assertIn("x_a", result[1])
 
 
 class TestLogarithmic(unittest.TestCase):
