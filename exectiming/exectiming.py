@@ -478,23 +478,24 @@ class Timer(BaseTimer):
             for run in split.runs:
                 if transformers:
                     # if we have transformers for each split, go ahead and get this split
+                    split_transformers = None
                     if trans_op == 3 and i in transformers:
                         split_transformers = transformers[i]
                     elif trans_op == 3 and split.label in transformers:
                         split_transformers = transformers[split.label]
-                    else:
+                    elif trans_op == 2:
                         split_transformers = transformers  # all transformers are for this split
 
-                    args, kwargs = run.args[:], dict(run.kwargs)
+                    args, kwargs = list(run.args), dict(run.kwargs)
 
                     for j in range(len(args)):
-                        if trans_op == 1:  # we only have one function, so we transform everything with it
+                        if trans_op == 1:  # we only have one function, so transform everything with it
                             args[j] = transformers(args[j])
                         elif j in split_transformers:
                             args[j] = split_transformers[j](args[j])
 
                     for key in kwargs:
-                        if trans_op == 1:  # we only have one function, so we transform everything with it
+                        if trans_op == 1:  # we only have one function, so transform everything with it
                             kwargs[key] = transformers(kwargs[key])
                         elif key in split_transformers:
                             kwargs[key] = split_transformers[key](kwargs[key])
