@@ -222,7 +222,7 @@ timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude={1}, transformers
  * Additionally, the title and x-axis labels are specified and rounding set lower
 
 ## TODO
- - [ ] Add `.predict(params, arguments)` to `Timer`. Should basically be a
+ - [x] Add `.predict(params, arguments)` to `Timer`. Should basically be a
  pass-through call to `.calculate_point()` on the correct best-fit-curve
  - [x] Collapse `exclude_args` and `exclude_kwargs` down into just `exclude`.
  The difference between positional and keyword arguments can be determined as

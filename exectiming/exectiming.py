@@ -30,7 +30,6 @@ except ImportError:
 
 class BaseTimer:
     S, MS, US, NS = "s", "ms", "us", "ns"
-    ROUNDING = 5
     _conversion = {S: 1, MS: 10**3, US: 10**6, NS: 10**9}
     _time = perf_counter
 
@@ -59,18 +58,19 @@ class BaseTimer:
         return out_args, out_kwargs
 
     @staticmethod
-    def _convert_time(time: float, unit: str, round_it=True) -> float:
+    def _convert_time(time: float, time_unit: str, round_it=True, rounding=5) -> float:
         """
         Convert and round a time from BaseTimer._time to the unit specified
         :param time: the amount of time, in fractional seconds if using perf_counter()
-        :param unit: the unit to convert to, in BaseTimer.[S | MS | US | NS]
+        :param time_unit: the unit to convert to, in BaseTimer.[S | MS | US | NS]
         :param round_it: whether to round or not
+        :param rounding: the amount to round
         :return: the converted and rounded time
         """
         if round_it:
-            return round(time * BaseTimer._conversion[unit], BaseTimer.ROUNDING)
+            return round(time * BaseTimer._conversion[time_unit], rounding)
         else:
-            return time * BaseTimer._conversion[unit]
+            return time * BaseTimer._conversion[time_unit]
 
     @staticmethod
     def _display_message(message: str, output_stream: TextIO=stdout):
@@ -748,6 +748,27 @@ class Timer(BaseTimer):
             plt.xlabel(x_label)
 
         plt.show()
+
+    def predict(self, parameters: Tuple[str, dict], *args, time_unit=BaseTimer.MS, rounding=8, **kwargs) -> float:
+        """
+        Predict the execution time based on the given best fit curve and the parameters being passed in. All argument
+        values must be integers and they must correspond in position or name to how the best-fit-curve was determined
+        :param parameters: the curve type and parameters of the best-fit-curve. Should be the exact result of a call to
+                    `.best_fit_curve()`
+        :param args: any positional arguments needed when predicting the execution time.
+        :param time_unit: the time unit to return the execution time in
+        :param rounding: how much to round the predicted execution time
+        :param kwargs: any keyword arguments to use when predicting the execution time
+        :return: the predicted execution time
+        """
+        if parameters[0] not in Split.best_fit_curves:
+            raise RuntimeWarning("{} is not a valid curve type".format(parameters[0]))
+
+        collapsed = dict(kwargs)
+        collapsed.update(dict((i, args[i]) for i in range(len(args))))
+
+        tm = Split.best_fit_curves[parameters[0]].calculate_point(collapsed, parameters[1])
+        return self._convert_time(tm, time_unit, rounding=rounding)
 
     def sort_runs(self, split_index: Union[str, int]=all, reverse: bool=False,
                   keys: Union[str, int, Dict[Union[str, int], Union[str, int]]]=None,

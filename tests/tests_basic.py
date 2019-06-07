@@ -240,6 +240,21 @@ class TestTimerBasic(unittest.TestCase):
         self.assertEqual(lines[0], "Split:")
         self.assertEqual(lines[1][17:], " - {:42} [runs=  1, iterations=  1] {:<20}".format("Test(5, 6, array=10)", ""))
 
+    def test_predict_invalid(self):
+        timer = Timer()
+        self.assertRaisesRegex(RuntimeWarning, "test is not a valid curve type", timer.predict, ("test", {}))
+
+    def test_predict_linear(self):
+        timer = Timer()
+        result = timer.predict(
+            ("Linear", {"b": 4, "x_0": 2, "x_test": 4}),
+            2,
+            test=3,
+            time_unit=timer.S
+        )
+
+        self.assertEqual(result, 2*2 + 4*3 + 4)
+
     def test_sort_basic(self):
         timer = Timer(split=True)
 
