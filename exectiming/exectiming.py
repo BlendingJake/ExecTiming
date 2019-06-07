@@ -478,9 +478,9 @@ class Timer(BaseTimer):
             for run in split.runs:
                 if transformers:
                     # if we have transformers for each split, go ahead and get this split
-                    if trans_op == 2 and i in transformers:
+                    if trans_op == 3 and i in transformers:
                         split_transformers = transformers[i]
-                    elif trans_op == 2 and split.label in transformers:
+                    elif trans_op == 3 and split.label in transformers:
                         split_transformers = transformers[split.label]
                     else:
                         split_transformers = transformers  # all transformers are for this split
