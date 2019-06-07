@@ -235,6 +235,38 @@ class TestTimerBasic(unittest.TestCase):
         self.assertEqual(lines[0], "Split:")
         self.assertEqual(lines[1][17:], " - {:42} [runs=  1, iterations=  1] {:<20}".format("Test(5, 6, array=10)", ""))
 
+    def test_output_single_transformer(self):
+        out = StringIO()
+
+        timer = Timer(split=True, output_stream=out)
+        timer.splits[-1].add_run(Run(time=1, label="Test", runs=1, iterations_per_run=1, args=([1, 3, 2], )))
+
+        timer.output(transformers=sum, time_unit=timer.S)
+        self.assertIn("1.00000 s  - Test(6)", out.getvalue())
+
+    def test_output_multiple_transformers(self):
+        out = StringIO()
+
+        timer = Timer(split=True, output_stream=out)
+        timer.splits[-1].add_run(Run(time=1, label="Test", runs=1, iterations_per_run=1, args=(4, [1, 3, 2]),
+                                     kwargs={"test": [1, 4]}))
+
+        timer.output(transformers={1: sum, "test": len}, time_unit=timer.S)
+        self.assertIn("1.00000 s  - Test(4, 6, test=2)", out.getvalue())
+
+    def test_output_multiple_split_transformers(self):
+        out = StringIO()
+
+        timer = Timer(split=True, output_stream=out, label="test1")
+        timer.splits[-1].add_run(Run(time=1, label="Test1", runs=1, iterations_per_run=1, kwargs={"test": [1, 4]}))
+
+        timer.split(label="test2")
+        timer.splits[-1].add_run(Run(time=1, label="Test2", runs=1, iterations_per_run=1, args=(4, [1, 3, 2])))
+
+        timer.output(transformers={"test1": {"test": sum}, "test2": {1: len}}, time_unit=timer.S)
+        self.assertIn("1.00000 s  - Test1(test=5)", out.getvalue())
+        self.assertIn("1.00000 s  - Test2(4, 3)", out.getvalue())
+
     def test_predict_invalid(self):
         timer = Timer()
         self.assertRaisesRegex(RuntimeWarning, "test is not a valid curve type", timer.predict, ("test", {}))
