@@ -19,6 +19,7 @@ from typing import Union, Tuple, List, TextIO, Dict, Set
 from functools import wraps
 from sys import stdout
 from .data_structures import Run, Split
+from contextlib import contextmanager
 
 try:
     import matplotlib.pyplot as plt
@@ -81,15 +82,15 @@ class BaseTimer:
         output_stream.write(message + "\n")
 
     @staticmethod
-    def _format_output(label: str, runs: int, iterations: int, time: float, unit: str, args: Union[None, list]=(),
-                       kwargs: Union[None, dict]=(), message: str="") -> str:
+    def _format_output(label: str, runs: int, iterations_per_run: int, time: float, time_unit: str,
+                       args: Union[None, list]=(), kwargs: Union[None, dict]=(), message: str="") -> str:
         """
         Build up a string message based on the input parameters
         :param label: the name of the function, part of the string being timed, or label of the call
         :param runs: the number of runs
-        :param iterations: the number of iterations
+        :param iterations_per_run: the number of iterations
         :param time: the measured time value
-        :param unit: the unit the time value needs to be displayed in
+        :param time_unit: the unit the time value needs to be displayed in
         :param args: if it was a function, the positional arguments that were passed when it was called
         :param kwargs: if it was a function, the keyword arguments that were passed when it was called
         :param message: a message to display if there is one
@@ -112,9 +113,14 @@ class BaseTimer:
         if message:
             message = "| {}".format(message)
 
-        return "{:>10.5f} {:2} - {} [runs={:3}, iterations={:3}] {:<20.20}".format(BaseTimer._convert_time(time, unit),
-                                                                                   unit, name_part, runs, iterations,
-                                                                                   message)
+        return "{:>10.5f} {:2} - {} [runs={:3}, iterations={:3}] {:<20.20}".format(
+            BaseTimer._convert_time(time, time_unit),
+            time_unit,
+            name_part,
+            runs,
+            iterations_per_run,
+            message
+        )
 
 
 class StaticTimer(BaseTimer):
@@ -138,6 +144,31 @@ class StaticTimer(BaseTimer):
             respectively.
     """
     _elapsed_time = None
+
+    @staticmethod
+    @contextmanager
+    def context(*args, runs=1, iterations_per_run=1, label="Context", time_unit=BaseTimer.MS,
+                output_stream: TextIO=stdout, **kwargs):
+        """
+        Provides a context manager that can be used with a `with` statement as `with StaticTimer.context():`. The only
+        option is to output the measured time.
+        :param args: any arguments to log with the run
+        :param runs: the number of runs that were performed. THIS IS ONLY FOR LOGGING PURPOSES.
+        :param iterations_per_run: the number of iterations that were performed. THIS IS ONLY FOR LOGGING PURPOSES.
+        :param label: the label for the run
+        :param time_unit: the time unit to use for the output
+        :param output_stream: the file-like object to write the output to
+        :param kwargs: any keyword arguments to log with the run
+        """
+        tm = StaticTimer._time()
+        yield
+
+        dif = StaticTimer._time() - tm
+        StaticTimer._display_message(
+            StaticTimer._format_output(label=label, time=dif, runs=runs, iterations_per_run=iterations_per_run,
+                                       args=list(args), kwargs=kwargs, time_unit=time_unit),
+            output_stream=output_stream
+        )
 
     @staticmethod
     def decorate(runs=1, iterations_per_run=1, average_runs=True, display=True, time_unit=BaseTimer.MS,
@@ -454,8 +485,8 @@ class Timer(BaseTimer):
 
                 string.append("{}{}\n".format(
                     self.indent,
-                    self._format_output(label=run.label, runs=run.runs, iterations=run.iterations_per_run,
-                                        time=run.time, unit=time_unit, args=args, kwargs=kwargs)
+                    self._format_output(label=run.label, runs=run.runs, iterations_per_run=run.iterations_per_run,
+                                        time=run.time, time_unit=time_unit, args=args, kwargs=kwargs)
                 ))
 
             string.append("\n")
@@ -486,6 +517,27 @@ class Timer(BaseTimer):
                                                                   transformers=transformers)
         else:
             raise RuntimeWarning("The split index/label {} is out of bounds/could not be found".format(adjusted_index))
+
+    @contextmanager
+    def context(self, *args, runs=1, iterations_per_run=1, label="Context", **kwargs):
+        """
+        Provides a context manager that can be used with a `with` statement as `with Timer.context():`. The measured
+        time is logged and is not returned. If there is no split, then a RuntimeWarning will be raised.
+        :param args: any arguments to log with the run
+        :param runs: the number of runs that were performed. THIS IS ONLY FOR LOGGING PURPOSES.
+        :param iterations_per_run: the number of iterations that were performed. THIS IS ONLY FOR LOGGING PURPOSES.
+        :param label: the label for the run
+        :param kwargs: any keyword arguments to log with the run
+        """
+        if not self.splits:
+            raise RuntimeWarning("There must be a split created before any times can be logged.")
+
+        tm = self._time()
+        yield
+
+        dif = self._time() - tm
+        self.splits[-1].add_run(Run(label=label, time=dif, runs=runs, iterations_per_run=iterations_per_run,
+                                    args=args, kwargs=kwargs))
 
     def decorate(self, runs=1, iterations_per_run=1, call_callable_args=False, log_arguments=False, split=True,
                  split_label: str=None) -> callable:

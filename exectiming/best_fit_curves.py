@@ -168,7 +168,7 @@ class BestFitLinear(BestFitBase):
     @staticmethod
     def equation(parameters, rounding=8):
         return "y = {} + {}".format(
-            parameters["b"],
+            round(parameters["b"], rounding),
             " + ".join("{}x_{}".format(round(value, rounding), key) for key, value in parameters.items() if key != "b")
         )
 

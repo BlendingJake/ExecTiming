@@ -7,6 +7,24 @@ from time import sleep
 
 
 class TestStaticBasic(unittest.TestCase):
+    def test_context(self):
+        out = StringIO()
+
+        with StaticTimer.context(output_stream=out):
+            sleep(0.01)
+
+        self.assertEqual(out.getvalue().rstrip()[11:],
+                         "ms - Context                                    [runs=  1, iterations=  1]")
+
+    def test_context_with_args(self):
+        out = StringIO()
+
+        with StaticTimer.context(7, 10, test="test_value", label="Sleep", output_stream=out):
+            sleep(0.01)
+
+        self.assertEqual(out.getvalue().rstrip()[11:],
+                         "ms - Sleep(7, 10, test=test_value)              [runs=  1, iterations=  1]")
+
     def test_decorate(self):
         out = StringIO()
 
@@ -126,6 +144,24 @@ class TestStaticBasic(unittest.TestCase):
 
 
 class TestTimerBasic(unittest.TestCase):
+    def test_context(self):
+        timer = Timer(split=True)
+
+        with timer.context():
+            sleep(0.01)
+
+        self.assertEqual(timer.splits[-1].runs[-1].label, "Context")
+
+    def test_context_with_args(self):
+        timer = Timer(split=True)
+
+        with timer.context(7, 10, test="test_value", label="Sleep"):
+            sleep(0.01)
+
+        self.assertEqual(timer.splits[-1].runs[-1].label, "Sleep")
+        self.assertEqual(timer.splits[-1].runs[-1].args, (7, 10))
+        self.assertEqual(timer.splits[-1].runs[-1].kwargs, {"test": "test_value"})
+
     def test_decorate_basic(self):
         timer = Timer()
 

@@ -42,10 +42,10 @@ pip install exectiming
 ```
 For full functionality:
 
- * `scipy`
- * `scikit-learn`
- * `numpy`
- * `matplotlib`
+ * `scipy` - for best-fit-curve
+ * `scikit-learn` - for best-fit-curve
+ * `numpy` - for best-fit-curve
+ * `matplotlib` - for plotting
 
 However, basic functionality will still exist even if those dependencies aren't found
 
@@ -63,7 +63,6 @@ def factorial(n):
         return n * factorial.__wrapped__(n-1)
 
 factorial(lambda: randint(3, 40))
-
 #    0.01663 ms - factorial(33) ... [runs=  1, iterations=  1] | Run 1
 #    0.00544 ms - factorial(19) ... [runs=  1, iterations=  1] | Run 2
 #    0.00736 ms - factorial(28) ... [runs=  1, iterations=  1] | Run 3
@@ -193,8 +192,6 @@ timer.plot(transformer=len, plot_curve=True, curve=curve, x_label="List Length")
 ```python
 @timer.decorate(runs=100, iterations_per_run=5, log_arguments=True, call_callable_args=True)
 def binary_search(sorted_array, element):
-    # print(len(sorted_array))
-
     lower, upper = 0, len(sorted_array)
     middle = upper // 2
 
@@ -225,6 +222,14 @@ timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude_args={1}, transfo
  * Additionally, the title and x-axis labels are specified and rounding set lower
 
 ## TODO
+ - [ ] Add `.predict(params, arguments)` to `Timer`. Should basically be a
+ pass-through call to `.calculate_point()` on the correct best-fit-curve
+ - [ ] Collapse `exclude_args` and `exclude_kwargs` down into just `exclude`.
+ The difference between positional and keyword arguments can be determined as
+ int vs. str.
+ - [ ] Change how coefficients are returned for `BestFitLinear`, maybe use
+ **x<sub>index/key</sub>**
+ - [x] Add context manager
  - [x] Make scipy, numpy, and scikit-learn optional, just prohibit `best_fit_curve` if they aren't there
  - [x] Add graphing feature with matplotlib, Linear will only be graphed if there is a single argument
  - [x] Add the ability to sort runs so they are display in some sort of order. Maybe allow sorting
