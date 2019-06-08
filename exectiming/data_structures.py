@@ -53,13 +53,29 @@ class Split:
             return 0
 
     def determine_best_fit(self, curve_type: str=any, exclude: Set[Union[str, int]]=(),
-                           transformers: Dict[Union[int, str], callable]=()) -> Union[None, Tuple[str, dict]]:
+                           transformers: Union[callable, Dict[Union[str, int], callable]]=()
+                           ) -> Union[None, Tuple[str, dict]]:
         """
         Determine the best fit curve for the runs contained in this split.
+        :param curve_type: the name of the curve type to determine parameters for. Defaults to using the best-fit
+        :param exclude: the indices of the positional arguments or keys of keyword arguments to exclude when performing
+                    curve calculation
+        :param transformers: function(s) that take an argument and return an integer, as integers are needed for
+                determining the best fit curve. `transformers` can be formatted in one of two ways:
+                1. A callable which will be used with every argument that is encountered, aka, `transformers=len`
+                2. A map of positional argument indices and keyword argument names to the callable to use with that
+                    argument, aka, `transformers={0: len, "array": sum}
         :return: A tuple of a string name for the best fit curve and a dict of the parameters for that curve
         """
         if MISSING_CURVE_FITTING:
             raise RuntimeWarning("scikit-learn, scipy, and numpy are needed for curve fitting and could not be found")
+
+        trans_op = None
+        if transformers:
+            if callable(transformers):
+                trans_op = 1
+            else:
+                trans_op = 2
 
         points = []
         for run in self.runs:
@@ -67,15 +83,21 @@ class Split:
                 raise RuntimeWarning("Arguments must have been logged to determine a best fit curve")
 
             # TRANSFORM ARGUMENTS
-            new_args, new_kwargs = run.args[:], dict(run.kwargs)
+            new_args, new_kwargs = list(run.args), dict(run.kwargs)
             if transformers:
                 for i in range(len(new_args)):
-                    if i in transformers:
-                        new_args[i] = transformers[i](new_args[i])
+                    if i not in exclude:  # only transform if we aren't going to exclude it
+                        if trans_op == 1:  # we have a single callable, so use it everywhere
+                            new_args[i] = transformers(new_args[i])
+                        elif i in transformers:
+                            new_args[i] = transformers[i](new_args[i])
 
                 for key in new_kwargs:
-                    if key in transformers:
-                        new_kwargs[key] = transformers[key](new_kwargs[key])
+                    if key not in exclude:  # only transform if we aren't going to exclude it
+                        if trans_op == 1:  # we have a single callable, so use it everywhere
+                            new_kwargs[key] = transformers(new_kwargs[key])
+                        elif key in transformers:
+                            new_kwargs[key] = transformers[key](new_kwargs[key])
 
             # ONLY KEEP NON-EXCLUDED ARGUMENTS
             collapsed = dict((i, new_args[i]) for i in range(len(new_args)) if i not in exclude)
