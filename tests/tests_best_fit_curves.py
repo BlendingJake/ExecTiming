@@ -36,6 +36,15 @@ class TestConsistentFeatures(unittest.TestCase):
 
         self.assertNotEqual(timer.best_fit_curve(exclude={1, "name"}), None)  # make sure we actually found a curve
 
+    def test_basic_transformers(self):
+        timer = Timer(split=True, start=True)
+
+        timer.log([1, 2, 3])
+        timer.log([4, 5, 3])
+        timer.log([6, 7, 3])
+
+        self.assertNotEqual(timer.best_fit_curve(transformers=len), None)  # this should work without issue
+
 
 class TestExponential(unittest.TestCase):
     def test_basic(self):

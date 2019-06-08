@@ -136,7 +136,7 @@ timer.statistics()
 #     Standard Deviation  1106.06873 ms
 #     Variance            1223.38803 ms
 
-timer.best_fit_curve(transformers={0: len})
+timer.best_fit_curve(transformers=len)
 # ('Polynomial', {'b': -0.013786, 'x^0': 0.0, 'x^1': 0.0000066066, 'x^2': 0.000000149})
 ```
 
@@ -179,7 +179,7 @@ timer.plot(plot_curve=True, time_unit=timer.US, equation_rounding=5)
 # using bubble_sort from above, just with runs=10
 
 bubble_sort(lambda: [randint(0, 100) for _ in range(randint(100, 2500))])
-curve = timer.best_fit_curve(transformers={0: len})
+curve = timer.best_fit_curve(transformers=len)
 timer.plot(transformer=len, plot_curve=True, curve=curve, x_label="List Length")
 ```
 ![Imgur Image](https://imgur.com/cJ62w1Z.png)
@@ -208,7 +208,7 @@ def binary_search(sorted_array, element):
     return None  # couldn't find it
 
 binary_search(lambda: [i for i in range(randint(0, 10000))], lambda: randint(0, 10000))
-timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude={1}, transformers={0: len}), key=0,
+timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude={1}, transformers=len), key=0,
            transformer=len, time_unit=timer.US, x_label="List Length", equation_rounding=4,
            title="Binary Search - Random Size, Random Element")
 ```
@@ -222,6 +222,7 @@ timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude={1}, transformers
  * Additionally, the title and x-axis labels are specified and rounding set lower
 
 ## TODO
+ - [x] Change `.best_fit_curve()` to allow `transformers` to be a callable
  - [x] Change `.output()` to not require `split_index` if `transformers={0:len}`. 
  Allow `transformers` to be just a function, if there is only one argument, or a map 
  or a map of a map.

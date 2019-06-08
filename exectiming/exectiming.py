@@ -513,7 +513,8 @@ class Timer(BaseTimer):
         return "".join(string)
 
     def best_fit_curve(self, curve_type: str=any, exclude: Set[Union[str, int]]=(), split_index: Union[int, str]=-1,
-                       transformers: Dict[Union[str, int], callable]=()) -> Union[None, Tuple[str, dict]]:
+                       transformers: Union[callable, Dict[Union[str, int], callable]]=()
+                       ) -> Union[None, Tuple[str, dict]]:
         """
         Determine the best fit curve for a split using logged arguments as the independent variable and the measured
         time as the dependent variable. By default, the most recent split is used. All non-excluded arguments must have
@@ -522,10 +523,11 @@ class Timer(BaseTimer):
         :param exclude: the indices of the positional arguments or keys of keyword arguments to exclude when performing
                     curve calculation
         :param split_index: The index or name of the split to determine the best fit curve for
-        :param transformers: functions that take an argument and return an integer, as integers are needed for
-                determining the best fit curve. Positional arguments are denoted with integer keys denoting the position
-                and keyword arguments are denoted by the key itself. Example, `func(list)` would need
-                `transformers={0: len}` where `len` can be replaced with any function that returns an integer
+        :param transformers: function(s) that take an argument and return an integer, as integers are needed for
+                determining the best fit curve. `transformers` can be formatted in one of two ways:
+                1. A callable which will be used with every argument that is encountered, aka, `transformers=len`
+                2. A map of positional argument indices and keyword argument names to the callable to use with that
+                    argument, aka, `transformers={0: len, "array": sum}
         :return: None if there is no best fit curve. Otherwise, the name of the curve and any parameters
         """
         adjusted_index = -1 if split_index == -1 else self._adjust_split_index(split_index)
