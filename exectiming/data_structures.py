@@ -46,12 +46,6 @@ class Split:
     def add_run(self, run: Run):
         self.runs.append(run)
 
-    def average(self) -> float:
-        if self.runs:
-            return sum(i.time for i in self.runs) / len(self.runs)
-        else:
-            return 0
-
     def determine_best_fit(self, curve_type: str=any, exclude: Set[Union[str, int]]=(),
                            transformers: Union[callable, Dict[Union[str, int], callable]]=()
                            ) -> Union[None, Tuple[str, dict]]:
@@ -139,20 +133,31 @@ class Split:
                     curve_type, ", ".join(self.best_fit_curves.keys())
                 ))
 
-    def standard_deviation(self) -> float:
+    def statistics(self) -> Dict[str, Union[float, int]]:
         """
-        Calculate the standard deviation of the runs contained within this split where SD is:
-        sqrt(sum (x - x_bar)**2 / n)
-        :return: the standard deviation
+        Calculate all statistics and return them as a map. The statistics that will be calculated are: `min`, `max`,
+        `average`, `total_time`, `count`, `standard_deviation`, and `variance`
+        `average`: sum(x) / n
+        `standard_deviation`: sqrt(sum (x - average)**2 / n)
+        :return: a map of the key names listed above to the associated values
         """
-        if self.runs:
-            avg = self.average()
-            return sqrt(sum((run.time - avg) ** 2 for run in self.runs) / len(self.runs))
-        else:
-            return 0
+        stats = {
+            "total_time": sum(run.time for run in self.runs),
+            "min": min(run.time for run in self.runs),  # there are faster ways to get max and min,
+            "max": max(run.time for run in self.runs),  # but the savings will be very minimal since len(runs) is small
+            "count": len(self.runs)
+        }
 
-    def variance(self) -> float:
         if self.runs:
-            return self.standard_deviation() ** 2
+            stats["average"] = stats["total_time"] / len(self.runs)
+            stats["standard_deviation"] = sqrt(
+                sum((run.time - stats["average"]) ** 2 for run in self.runs) /
+                len(self.runs)
+            )
+            stats["variance"] = stats["standard_deviation"] ** 2
         else:
-            return 0
+            stats["average"] = 0
+            stats["standard_deviation"] = 0
+            stats["variance"] = 0
+
+        return stats

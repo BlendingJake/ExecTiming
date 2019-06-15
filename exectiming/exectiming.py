@@ -864,32 +864,45 @@ class Timer(BaseTimer):
             if not split.runs:  # skip splits with no logged times
                 continue
 
+            stats = split.statistics()
             self.output_stream.write("{}:\n".format(split.label))
 
             # STATISTICS
-            self.output_stream.write("{}{:<20}{}\n".format(self.indent, "Runs", len(split.runs)))
-            self.output_stream.write("{}{:<20}{} {}\n".format(
+            self.output_stream.write("{}{:>20} {}\n".format(self.indent, "Runs", stats["count"]))
+            self.output_stream.write("{}{:>20} {} {}\n".format(
                 self.indent,
                 "Total Time",
-                self._convert_time(sum(run.time for run in split.runs), time_unit),
+                self._convert_time(stats["total_time"], time_unit),
                 time_unit
             ))
-            self.output_stream.write("{}{:<20}{} {}\n".format(
+            self.output_stream.write("{}{:>20} {} {}\n".format(
+                self.indent,
+                "Min",
+                self._convert_time(stats["min"], time_unit),
+                time_unit
+            ))
+            self.output_stream.write("{}{:>20} {} {}\n".format(
+                self.indent,
+                "Max",
+                self._convert_time(stats["max"], time_unit),
+                time_unit
+            ))
+            self.output_stream.write("{}{:>20} {} {}\n".format(
                 self.indent,
                 "Average",
-                self._convert_time(split.average(), time_unit),
+                self._convert_time(stats["average"], time_unit),
                 time_unit
             ))
-            self.output_stream.write("{}{:<20}{} {}\n".format(
+            self.output_stream.write("{}{:>20} {} {}\n".format(
                 self.indent,
                 "Standard Deviation",
-                self._convert_time(split.standard_deviation(), time_unit),
+                self._convert_time(stats["standard_deviation"], time_unit),
                 time_unit
             ))
-            self.output_stream.write("{}{:<20}{} {}\n".format(
+            self.output_stream.write("{}{:>20} {} {}\n".format(
                 self.indent,
                 "Variance",
-                self._convert_time(split.variance(), time_unit),
+                self._convert_time(stats["variance"], time_unit),
                 time_unit
             ))
 
