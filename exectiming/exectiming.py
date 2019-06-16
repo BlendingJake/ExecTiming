@@ -34,6 +34,37 @@ class BaseTimer:
     _time = perf_counter
 
     @staticmethod
+    def _argument_copier(args: tuple, kwargs: dict, copiers: Union[callable, Dict[Union[str, int], callable]]
+                         ) -> Tuple[list, dict]:
+        """
+        Take a list of keyword arguments and a map of positional arguments and replace any of them with the return value
+        from the corresponding copier function, where corresponding means the copier's key is the index of the
+        positional argument or the name of the keyword argument. The argument's value is replaced with
+        `copiers[key](argument value)` if `copiers` is a map, otherwise, with `copiers(argument value)`
+        :param args: any positional arguments
+        :param kwargs: any keyword arguments
+        :param copiers: a single callable that will be used for all arguments or a map of integer indices or string
+                    names to functions that will copy the corresponding argument
+        :return: return a copy of the list and map containing the parameters
+        """
+        is_copiers_callable = callable(copiers)
+        out_args, out_kwargs = list(args), dict(kwargs)
+
+        for i in range(len(args)):
+            if is_copiers_callable:
+                out_args[i] = copiers(args[i])
+            elif i in copiers:
+                out_args[i] = copiers[i](args[i])
+
+        for key in kwargs:
+            if is_copiers_callable:
+                out_kwargs[key] = copiers(kwargs[key])
+            elif key in copiers:
+                out_kwargs[key] = copiers[key](kwargs[key])
+
+        return out_args, out_kwargs
+
+    @staticmethod
     def _call_callable_args(args: tuple, kwargs: dict) -> Tuple[list, dict]:
         """
         If any value in args or kwargs is callable, then replace it with the result of calling the value
@@ -172,7 +203,8 @@ class StaticTimer(BaseTimer):
 
     @staticmethod
     def decorate(runs=1, iterations_per_run=1, average_runs=True, display=True, time_unit=BaseTimer.MS,
-                 output_stream: TextIO=stdout, call_callable_args=False, log_arguments=False) -> callable:
+                 output_stream: TextIO=stdout, call_callable_args=False, log_arguments=False,
+                 copiers: Union[callable, Dict[Union[str, int], callable]]=None) -> callable:
         """
         A decorator that will time a function and then either output the results to `output_stream` if `display`.
         Otherwise, the measured time(s) will be returned along with the return value of the wrapped function
@@ -188,6 +220,11 @@ class StaticTimer(BaseTimer):
                     function will be replaced with their return value. So `wrapped(callable)` will actually be
                     `wrapped(callable())`
         :param log_arguments: whether to keep track of the arguments so they can be displayed if `display`
+        :param copiers: function(s) that will be used to copy any arguments such that the copied version is passed into
+                    the function. Useful when the wrapped function has side-effects and modifies one of the arguments.
+                    In that case, any subsequent iterations will be using the modified version. Copiers are used on each
+                    iteration to avoid that issue. Can be a single callable which will be used on all arguments, or a
+                    map of positional indices or keyword argument names to functions.
         :return: a function wrapper
         """
         def wrapper(func: callable) -> callable:
@@ -201,22 +238,30 @@ class StaticTimer(BaseTimer):
                 """
                 run_totals = []
                 value = None
-                new_args, new_kwargs = args, kwargs
                 arguments = []
 
                 # MEASURE
                 for _ in range(runs):
                     # call any callable args and replace them with the result of the call
                     if call_callable_args:
-                        new_args, new_kwargs = StaticTimer._call_callable_args(args, kwargs)
+                        run_args, run_kwargs = StaticTimer._call_callable_args(args, kwargs)
+                    else:
+                        run_args, run_kwargs = args, kwargs
 
                     if log_arguments:
-                        arguments.append((new_args, new_kwargs))
+                        arguments.append((run_args, run_kwargs))
 
                     st = StaticTimer._time()
                     for _ in range(iterations_per_run):
-                        value = func(*new_args, **new_kwargs)
+                        if copiers is not None:  # conditional should have minimal effect on execution time
+                            delta = StaticTimer._time()
+                            iteration_args, iteration_kwargs = StaticTimer._argument_copier(run_args, run_kwargs,
+                                                                                            copiers)
+                            st += StaticTimer._time() - delta  # ignore the amount of time needed to copy the arguments
+                        else:
+                            iteration_args, iteration_kwargs = run_args, run_kwargs
 
+                        value = func(*iteration_args, **iteration_kwargs)
                     run_totals.append(StaticTimer._time() - st)
 
                 # DETERMINE TIME, DISPLAY OR RETURN
@@ -300,7 +345,8 @@ class StaticTimer(BaseTimer):
     @staticmethod
     def time_it(block: Union[str, callable], *args, runs=1, iterations_per_run=1, average_runs=True, display=True,
                 time_unit=BaseTimer.MS, output_stream: TextIO=stdout, call_callable_args=False, log_arguments=False,
-                globals: dict=(), locals: dict=(), **kwargs) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
+                globals: dict=(), locals: dict=(), copiers: Union[callable, Dict[Union[str, int], callable]]=None,
+                **kwargs) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
         """
         Measure the execution time of a function are string. Positional and keyword arguments can be passed through to
         `block` if it is a function. `eval` is used if `block` is a string and so a namespace can be passed to it by
@@ -320,6 +366,12 @@ class StaticTimer(BaseTimer):
                     Only valid if `block` is callable
         :param globals: a global namespace to pass to `eval` if `block` is a string
         :param locals: a local namespace to pass to `eval` if `block` is a string
+        :param copiers: function(s) that will be used to copy any arguments such that the copied version is passed into
+                    the function. Useful when the wrapped function has side-effects and modifies one of the arguments.
+                    In that case, any subsequent iterations will be using the modified version. Copiers are used on each
+                    iteration to avoid that issue. Can be a single callable which will be used on all arguments, or a
+                    map of positional indices or keyword argument names to functions. Only will be used if `block` is
+                    `callable`
         :param kwargs: any keyword arguments to pass into `block` if it is callable
         :return: If `display`, then just the return value of calling/evaluating `block` is returned. Otherwise, a
                     tuple of the return value and the measured time(s) is returned. If `average`, then a single time
@@ -329,22 +381,31 @@ class StaticTimer(BaseTimer):
         run_totals = []
         arguments = []
         value = None
-        new_args, new_kwargs = args, kwargs
         globals = globals if globals else {}
         locals = locals if locals else {}
+        run_args, run_kwargs = None, None  # add to get rid of "might be referenced before declared", which is invalid
 
         # MEASURE
         for _ in range(runs):
-            if callable(block) and call_callable_args:
-                new_args, new_kwargs = StaticTimer._call_callable_args(args, kwargs)
+            if callable(block):
+                if call_callable_args:
+                    run_args, run_kwargs = StaticTimer._call_callable_args(args, kwargs)
+                    if log_arguments:
+                        arguments.append((run_args, run_kwargs))
+                else:
+                    run_args, run_kwargs = args, kwargs
 
             st = StaticTimer._time()
             for _ in range(iterations_per_run):
                 if callable(block):
-                    if log_arguments:
-                        arguments.append((new_args, new_kwargs))
+                    if copiers is not None:  # conditional should have minimal effect on execution time
+                        delta = StaticTimer._time()
+                        iteration_args, iteration_kwargs = StaticTimer._argument_copier(run_args, run_kwargs, copiers)
+                        st += StaticTimer._time() - delta  # ignore the amount of time needed to copy the arguments
+                    else:
+                        iteration_args, iteration_kwargs = run_args, run_kwargs
 
-                    value = block(*new_args, **new_kwargs)
+                    value = block(*iteration_args, **iteration_kwargs)
                 else:
                     value = eval(block, globals, locals)
 
@@ -559,7 +620,7 @@ class Timer(BaseTimer):
                                     args=args, kwargs=kwargs))
 
     def decorate(self, runs=1, iterations_per_run=1, call_callable_args=False, log_arguments=False, split=True,
-                 split_label: str=None) -> callable:
+                 split_label: str=None, copiers: Union[callable, Dict[Union[str, int], callable]]=None) -> callable:
         """
         A decorator that will time a function and store the measured time
         :param runs: the number times to measure the execution time
@@ -571,13 +632,17 @@ class Timer(BaseTimer):
                     for curve calculation
         :param split: create a split that will be used to store any runs created
         :param split_label: what the name of the new split will be. If None, then func.__name__ will be used
+        :param copiers: function(s) that will be used to copy any arguments such that the copied version is passed into
+                    the function. Useful when the wrapped function has side-effects and modifies one of the arguments.
+                    In that case, any subsequent iterations will be using the modified version. Copiers are used on each
+                    iteration to avoid that issue. Can be a single callable which will be used on all arguments, or a
+                    map of positional indices or keyword argument names to functions.
         :return: a function wrapper
         """
         def wrapper(func: callable) -> callable:
             @wraps(func)
             def inner_wrapper(*args, **kwargs) -> any:
                 value = None
-                new_args, new_kwargs = args, kwargs
 
                 if split:
                     self.split(label=func.__name__ if split_label is None else split_label)
@@ -588,18 +653,28 @@ class Timer(BaseTimer):
                 for _ in range(runs):
                     # call any callable args and replace them with the result of the call
                     if call_callable_args:
-                        new_args, new_kwargs = self._call_callable_args(args, kwargs)
+                        run_args, run_kwargs = self._call_callable_args(args, kwargs)
+                    else:
+                        run_args, run_kwargs = args, kwargs
 
                     st = StaticTimer._time()
                     for _ in range(iterations_per_run):
-                        value = func(*new_args, **new_kwargs)
+                        if copiers is not None:  # conditional should have minimal effect on execution time
+                            delta = StaticTimer._time()
+                            iteration_args, iteration_kwargs = StaticTimer._argument_copier(run_args, run_kwargs,
+                                                                                            copiers)
+                            st += StaticTimer._time() - delta  # ignore the amount of time needed to copy the arguments
+                        else:
+                            iteration_args, iteration_kwargs = run_args, run_kwargs
+
+                        value = func(*iteration_args, **iteration_kwargs)
 
                     run = Run(label=func.__name__, time=self._time() - st, runs=1,
                               iterations_per_run=iterations_per_run)
 
                     if log_arguments:
-                        run.args = new_args
-                        run.kwargs = new_kwargs
+                        run.args = run_args
+                        run.kwargs = run_kwargs
 
                     self.splits[-1].add_run(run)
 
@@ -904,8 +979,8 @@ class Timer(BaseTimer):
         self.splits.append(Split(label=label))
 
     def time_it(self, block: Union[str, callable], *args, runs=1, iterations_per_run=1, call_callable_args=False,
-                log_arguments=False, split=True, split_label=None, globals: dict=(), locals: dict=(), **kwargs
-                ) -> any:
+                log_arguments=False, split=True, split_label=None, globals: dict=(), locals: dict=(),
+                copiers: Union[callable, Dict[Union[str, int], callable]]=None, **kwargs) -> any:
         """
         Measure the execution time of a function are string. Positional and keyword arguments can be passed through to
         `block` if it is a function. `eval` is used if `block` is a string and so a namespace can be passed to it by
@@ -924,13 +999,19 @@ class Timer(BaseTimer):
                     `block` is callable. Otherwise, it will be the block itself.
         :param globals: a global namespace to pass to `eval` if `block` is a string
         :param locals: a local namespace to pass to `eval` if `block` is a string
+        :param copiers: function(s) that will be used to copy any arguments such that the copied version is passed into
+                    the function. Useful when the wrapped function has side-effects and modifies one of the arguments.
+                    In that case, any subsequent iterations will be using the modified version. Copiers are used on each
+                    iteration to avoid that issue. Can be a single callable which will be used on all arguments, or a
+                    map of positional indices or keyword argument names to functions. Only will be used if `block` is
+                    `callable`
         :param kwargs: any keyword arguments to pass into `block` if it is callable
         :return: a return/result value of calling/evaluating `block`
         """
         value = None
-        new_args, new_kwargs = args, kwargs
         globals = globals if globals else {}
         locals = locals if locals else {}
+        run_args, run_kwargs = None, None  # add to get rid of "might be referenced before declared", which is invalid
 
         if split:
             if split_label is None:
@@ -942,13 +1023,23 @@ class Timer(BaseTimer):
 
         # MEASURE
         for _ in range(runs):
-            if callable(block) and call_callable_args:
-                new_args, new_kwargs = self._call_callable_args(args, kwargs)
+            if callable(block):
+                if call_callable_args:
+                    run_args, run_kwargs = self._call_callable_args(args, kwargs)
+                else:
+                    run_args, run_kwargs = args, kwargs
 
             st = StaticTimer._time()
             for _ in range(iterations_per_run):
                 if callable(block):
-                    value = block(*new_args, **new_kwargs)
+                    if copiers is not None:  # conditional should have minimal effect on execution time
+                        delta = StaticTimer._time()
+                        iteration_args, iteration_kwargs = StaticTimer._argument_copier(run_args, run_kwargs, copiers)
+                        st += StaticTimer._time() - delta  # ignore the amount of time needed to copy the arguments
+                    else:
+                        iteration_args, iteration_kwargs = run_args, run_kwargs
+
+                    value = block(*iteration_args, **iteration_kwargs)
                 else:
                     value = eval(block, globals, locals)
 
@@ -956,8 +1047,8 @@ class Timer(BaseTimer):
                       runs=1, iterations_per_run=iterations_per_run)
 
             if log_arguments:
-                run.args = new_args
-                run.kwargs = new_kwargs
+                run.args = run_args
+                run.kwargs = run_kwargs
 
             self.splits[-1].add_run(run)
 
