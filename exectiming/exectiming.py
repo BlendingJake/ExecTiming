@@ -146,6 +146,95 @@ class StaticTimer(BaseTimer):
     _elapsed_time = None
 
     @staticmethod
+    def compare(func1: callable, func2: callable, *args, runs=1, iterations_per_run=1, label=None, display=True,
+                time_unit=BaseTimer.MS, output_stream: TextIO=stdout, call_callable_args=False, log_arguments=False,
+                average_runs=True, **kwargs) -> Union[None, float, List[float]]:
+        """
+        The provided function parameters are passed to both functions and the difference in execution time is
+        determined. A positive time means the first function took longer. A negative number means the second function
+        took longer. By default, the time difference(s) will be displayed.
+        :param func1: the first function to time
+        :param func2: the second function to time
+        :param args: any positional arguments to pass into the functions
+        :param runs: how many times the execution time of the wrapped function will be measured
+        :param iterations_per_run: how many times the wrapped function will be called for each run. The time for the
+                    run will the sum of the times of iterations
+        :param label: the label to use if displaying the measured time. Defaults to `func1.__name__/func2.__name__`
+        :param display: whether to display the measured time difference is displayed or returned
+        :param time_unit: the time scale to output the values in
+        :param output_stream: the file-like object to write any output to if `display`
+        :param call_callable_args: If True, then any `callable` arguments/parameters that are passed into the wrapped
+                    function will be replaced with their return value. So `func(callable)` will actually be
+                    `func(callable())`
+        :param log_arguments: whether to keep track of the arguments so they can be displayed if `display`
+        :param average_runs: whether to average the measured times from all the runs together or not
+        :param kwargs: any keyword arguments to pass into the functions
+        :return: If `display` then `None` is returned. Otherwise, if `average`, then a single float time difference
+                is returned, otherwise, a list of float time differences are returned
+        """
+        time_differences = []
+        logged_arguments = []
+
+        if label is None:
+            label = "{}/{}".format(func1.__name__, func2.__name__)
+
+        for _ in range(runs):
+            if call_callable_args:
+                new_args, new_kwargs = StaticTimer._call_callable_args(args, kwargs)
+            else:
+                new_args, new_kwargs = args, kwargs
+
+            st = StaticTimer._time()
+            for _ in range(iterations_per_run):
+                func1(*new_args, **new_kwargs)
+            time1 = StaticTimer._time() - st
+
+            st = StaticTimer._time()
+            for _ in range(iterations_per_run):
+                func2(*new_args, **new_kwargs)
+            time2 = StaticTimer._time() - st
+
+            time_differences.append(time1 - time2)
+
+            if log_arguments:
+                logged_arguments.append((new_args, new_kwargs))
+
+        if average_runs:
+            average = sum(time_differences) / len(time_differences)
+
+            if display:
+                if log_arguments:
+                    string = StaticTimer._format_output(label=label, runs=runs, iterations_per_run=iterations_per_run,
+                                                        time=average, time_unit=time_unit, args=logged_arguments[0][0],
+                                                        kwargs=logged_arguments[0][1])
+                else:
+                    string = StaticTimer._format_output(label=label, runs=runs, iterations_per_run=iterations_per_run,
+                                                        time=average, time_unit=time_unit)
+
+                StaticTimer._display_message(string, output_stream)
+                return None  # None
+            else:
+                return average  # float
+        else:
+            if display:
+                for i in range(runs):
+                    if log_arguments:
+                        string = StaticTimer._format_output(label=label, runs=1, iterations_per_run=iterations_per_run,
+                                                            time=time_differences[i], time_unit=time_unit,
+                                                            args=logged_arguments[i][0], kwargs=logged_arguments[i][1],
+                                                            message="Run {}".format(i+1))
+                    else:
+                        string = StaticTimer._format_output(label=label, runs=1, iterations_per_run=iterations_per_run,
+                                                            time=time_differences[i], time_unit=time_unit,
+                                                            message="Run {}".format(i+1))
+
+                    StaticTimer._display_message(string, output_stream=output_stream)
+                return None  # None
+            else:
+                # List[float]
+                return [StaticTimer._convert_time(time, time_unit) for time in time_differences]
+
+    @staticmethod
     @contextmanager
     def context(*args, runs=1, iterations_per_run=1, label="Context", time_unit=BaseTimer.MS,
                 output_stream: TextIO=stdout, **kwargs):
