@@ -865,41 +865,29 @@ class Timer(BaseTimer):
                 continue
 
             stats = split.statistics()
-            self.output_stream.write("{}:\n".format(split.label))
+            self.output_stream.write("{}[runs={}, total={} {}]:\n".format(
+                split.label,
+                stats["count"],
+                self._convert_time(stats["total"], time_unit),
+                time_unit
+            ))
 
             # STATISTICS
-            self.output_stream.write("{}{:>20} {}\n".format(self.indent, "Runs", stats["count"]))
-            self.output_stream.write("{}{:>20} {} {}\n".format(
+            self.output_stream.write("{}{:>20} = {} | {} | {} {}\n".format(
                 self.indent,
-                "Total Time",
-                self._convert_time(stats["total_time"], time_unit),
-                time_unit
-            ))
-            self.output_stream.write("{}{:>20} {} {}\n".format(
-                self.indent,
-                "Min",
+                "Min | Max | Average",
                 self._convert_time(stats["min"], time_unit),
-                time_unit
-            ))
-            self.output_stream.write("{}{:>20} {} {}\n".format(
-                self.indent,
-                "Max",
                 self._convert_time(stats["max"], time_unit),
-                time_unit
-            ))
-            self.output_stream.write("{}{:>20} {} {}\n".format(
-                self.indent,
-                "Average",
                 self._convert_time(stats["average"], time_unit),
                 time_unit
             ))
-            self.output_stream.write("{}{:>20} {} {}\n".format(
+            self.output_stream.write("{}{:>20} = {} {}\n".format(
                 self.indent,
                 "Standard Deviation",
                 self._convert_time(stats["standard_deviation"], time_unit),
                 time_unit
             ))
-            self.output_stream.write("{}{:>20} {} {}\n".format(
+            self.output_stream.write("{}{:>20} = {} {}\n".format(
                 self.indent,
                 "Variance",
                 self._convert_time(stats["variance"], time_unit),

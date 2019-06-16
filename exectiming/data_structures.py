@@ -136,20 +136,20 @@ class Split:
     def statistics(self) -> Dict[str, Union[float, int]]:
         """
         Calculate all statistics and return them as a map. The statistics that will be calculated are: `min`, `max`,
-        `average`, `total_time`, `count`, `standard_deviation`, and `variance`
+        `average`, `total`, `count`, `standard_deviation`, and `variance`
         `average`: sum(x) / n
         `standard_deviation`: sqrt(sum (x - average)**2 / n)
         :return: a map of the key names listed above to the associated values
         """
         stats = {
-            "total_time": sum(run.time for run in self.runs),
+            "total": sum(run.time for run in self.runs),
             "min": min(run.time for run in self.runs),  # there are faster ways to get max and min,
             "max": max(run.time for run in self.runs),  # but the savings will be very minimal since len(runs) is small
             "count": len(self.runs)
         }
 
         if self.runs:
-            stats["average"] = stats["total_time"] / len(self.runs)
+            stats["average"] = stats["total"] / len(self.runs)
             stats["standard_deviation"] = sqrt(
                 sum((run.time - stats["average"]) ** 2 for run in self.runs) /
                 len(self.runs)
