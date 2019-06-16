@@ -390,10 +390,11 @@ class StaticTimer(BaseTimer):
             if callable(block):
                 if call_callable_args:
                     run_args, run_kwargs = StaticTimer._call_callable_args(args, kwargs)
-                    if log_arguments:
-                        arguments.append((run_args, run_kwargs))
                 else:
                     run_args, run_kwargs = args, kwargs
+
+                if log_arguments:
+                    arguments.append((run_args, run_kwargs))
 
             st = StaticTimer._time()
             for _ in range(iterations_per_run):
