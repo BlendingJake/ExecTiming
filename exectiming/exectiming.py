@@ -853,9 +853,7 @@ class Timer(BaseTimer):
         if x_label is not None:
             plt.xlabel(x_label)
 
-        if plot_multiple:
-            return None
-        else:
+        if not plot_multiple:
             plt.show()
 
     def predict(self, parameters: Tuple[str, dict], *args, time_unit=BaseTimer.MS, rounding=8, **kwargs) -> float:
