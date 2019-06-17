@@ -747,7 +747,7 @@ class Timer(BaseTimer):
 
     def plot(self, split_index: Union[str, int]=-1, key: Union[str, int]=None, transformer: callable=None,
              time_unit=BaseTimer.MS, y_label: str="Time", x_label: str=None, title: str=None, plot_curve: bool=False,
-             curve: Tuple[str, dict]=None, curve_steps: int=100, equation_rounding: int=8):
+             curve: Tuple[str, dict]=None, curve_steps: int=100, equation_rounding: int=8, plot_multiple=False):
         """
         Plot the runs in the specified split or the most recent split if none is specified. If there is more than one
         argument logged for the runs, then a key needs to be provided to use as the independent variable. The argument's
@@ -766,6 +766,8 @@ class Timer(BaseTimer):
                     returns it
         :param curve_steps: the number of points used when drawing the best fit curve, if `plot_curve`
         :param equation_rounding: the number of decimal places to round the equation to if `plot_curve`
+        :param plot_multiple: if `plot_multiple`, then this `.plot()` call will not cause the plot to be displayed,
+                    allowing subsequent calls to add more layers to the plot
         """
         if MISSING_MAT_PLOT:
             raise RuntimeWarning("matplotlib is needed for plotting and it couldn't be found")
@@ -801,7 +803,7 @@ class Timer(BaseTimer):
             x_values.append(value)
             y_values.append(self._convert_time(run.time, time_unit))
 
-        plt.plot(x_values, y_values, "ro")
+        scatter_plot = plt.plot(x_values, y_values, "o")
 
         if title is None:
             plt.title(self.splits[adjusted_index].label)
@@ -831,12 +833,17 @@ class Timer(BaseTimer):
                 lower_x += step_value
 
             # PLOT CURVE
+            label = self.splits[adjusted_index].label
             plt.plot(
                 curve_x_values,
                 curve_y_values,
-                label=Split.best_fit_curves[curve[0]].equation(
-                    dict((key, self._convert_time(value, time_unit, False)) for key, value in curve[1].items()),
-                    rounding=equation_rounding
+                scatter_plot[-1].get_color(),  # match color from above
+                label="{}: {}".format(
+                    label[:17] + "..." if len(label) > 20 else label,
+                    Split.best_fit_curves[curve[0]].equation(
+                        dict((key, self._convert_time(value, time_unit, False)) for key, value in curve[1].items()),
+                        rounding=equation_rounding
+                    )
                 )
             )
             plt.legend()
@@ -846,7 +853,10 @@ class Timer(BaseTimer):
         if x_label is not None:
             plt.xlabel(x_label)
 
-        plt.show()
+        if plot_multiple:
+            return None
+        else:
+            plt.show()
 
     def predict(self, parameters: Tuple[str, dict], *args, time_unit=BaseTimer.MS, rounding=8, **kwargs) -> float:
         """
