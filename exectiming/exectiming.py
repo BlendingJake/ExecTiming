@@ -346,7 +346,7 @@ class StaticTimer(BaseTimer):
     def time_it(block: Union[str, callable], *args, runs=1, iterations_per_run=1, average_runs=True, display=True,
                 time_unit=BaseTimer.MS, output_stream: TextIO=stdout, call_callable_args=False, log_arguments=False,
                 globals: dict=(), locals: dict=(), copiers: Union[callable, Dict[Union[str, int], callable]]=None,
-                **kwargs) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
+                setup: str="", **kwargs) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
         """
         Measure the execution time of a function are string. Positional and keyword arguments can be passed through to
         `block` if it is a function. `eval` is used if `block` is a string and so a namespace can be passed to it by
@@ -372,6 +372,8 @@ class StaticTimer(BaseTimer):
                     iteration to avoid that issue. Can be a single callable which will be used on all arguments, or a
                     map of positional indices or keyword argument names to functions. Only will be used if `block` is
                     `callable`
+        :param setup: used when `block` is a string. Will be executed once before `block` is evaluated to setup any
+                    needed names in the namespace.
         :param kwargs: any keyword arguments to pass into `block` if it is callable
         :return: If `display`, then just the return value of calling/evaluating `block` is returned. Otherwise, a
                     tuple of the return value and the measured time(s) is returned. If `average`, then a single time
@@ -384,6 +386,10 @@ class StaticTimer(BaseTimer):
         globals = globals if globals else {}
         locals = locals if locals else {}
         run_args, run_kwargs = None, None  # add to get rid of "might be referenced before declared", which is invalid
+
+        # setup anything needed for evaluating `block` if it is a string
+        if not callable(block) and setup:
+            exec(setup)
 
         # MEASURE
         for _ in range(runs):
@@ -989,7 +995,7 @@ class Timer(BaseTimer):
 
     def time_it(self, block: Union[str, callable], *args, runs=1, iterations_per_run=1, call_callable_args=False,
                 log_arguments=False, split=True, split_label=None, globals: dict=(), locals: dict=(),
-                copiers: Union[callable, Dict[Union[str, int], callable]]=None, **kwargs) -> any:
+                copiers: Union[callable, Dict[Union[str, int], callable]]=None, setup: str="", **kwargs) -> any:
         """
         Measure the execution time of a function are string. Positional and keyword arguments can be passed through to
         `block` if it is a function. `eval` is used if `block` is a string and so a namespace can be passed to it by
@@ -1014,6 +1020,8 @@ class Timer(BaseTimer):
                     iteration to avoid that issue. Can be a single callable which will be used on all arguments, or a
                     map of positional indices or keyword argument names to functions. Only will be used if `block` is
                     `callable`
+        :param setup: used when `block` is a string. Will be executed once before `block` is evaluated to setup any
+                    needed names in the namespace.
         :param kwargs: any keyword arguments to pass into `block` if it is callable
         :return: a return/result value of calling/evaluating `block`
         """
@@ -1029,6 +1037,10 @@ class Timer(BaseTimer):
                 self.split(label=split_label)
         elif not self.splits:
             raise RuntimeWarning("No split exists. Do .split(), decorate(split=True), or Timer(split=True)")
+
+        # setup anything needed for future runs of `block` if it is a string
+        if not callable(block) and setup:
+            exec(setup)
 
         # MEASURE
         for _ in range(runs):
