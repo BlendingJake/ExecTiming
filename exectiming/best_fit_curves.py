@@ -210,7 +210,7 @@ class BestFitPolynomial(BestFitBase):
         values = curve_fit(lambda x, a, b, c: a*np.power(x, 2) + b*x + c, [val[0] for val in flattened_args],
                            matching_points, p0=(0.000001, 0.000001, 0.000001))
 
-        return {"a": values[0][0], "b": values[0][1], 0: 0, "c": values[0][2]}
+        return {"a": values[0][0], "b": values[0][1], "c": values[0][2]}
 
     @staticmethod
     def calculate_point(arguments, parameters):

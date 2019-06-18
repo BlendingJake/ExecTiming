@@ -580,17 +580,17 @@ class Timer(BaseTimer):
 
         return "".join(string)
 
-    def best_fit_curve(self, curve_type: str=any, exclude: Set[Union[str, int]]=(), split_index: Union[int, str]=-1,
+    def best_fit_curve(self, split_index: Union[int, str]=-1, curve_type: str=any, exclude: Set[Union[str, int]]=(),
                        transformers: Union[callable, Dict[Union[str, int], callable]]=()
                        ) -> Union[None, Tuple[str, dict]]:
         """
         Determine the best fit curve for a split using logged arguments as the independent variable and the measured
         time as the dependent variable. By default, the most recent split is used. All non-excluded arguments must have
         integer values to allow curve calculation. If the values are not integers, then they must be transformed.
+        :param split_index: The index or name of the split to determine the best fit curve for
         :param curve_type: specify a specific curve type to determine the parameters for
         :param exclude: the indices of the positional arguments or keys of keyword arguments to exclude when performing
                     curve calculation
-        :param split_index: The index or name of the split to determine the best fit curve for
         :param transformers: function(s) that take an argument and return an integer, as integers are needed for
                 determining the best fit curve. `transformers` can be formatted in one of two ways:
                 1. A callable which will be used with every argument that is encountered, aka, `transformers=len`
@@ -753,7 +753,7 @@ class Timer(BaseTimer):
 
     def plot(self, split_index: Union[str, int]=-1, key: Union[str, int]=None, transformer: callable=None,
              time_unit=BaseTimer.MS, y_label: str="Time", x_label: str=None, title: str=None, plot_curve: bool=False,
-             curve: Tuple[str, dict]=None, curve_steps: int=100, equation_rounding: int=8, plot_multiple=False):
+             curve: Tuple[str, dict]=None, curve_steps: int=100, equation_rounding: int=8, multiple=False):
         """
         Plot the runs in the specified split or the most recent split if none is specified. If there is more than one
         argument logged for the runs, then a key needs to be provided to use as the independent variable. The argument's
@@ -772,7 +772,7 @@ class Timer(BaseTimer):
                     returns it
         :param curve_steps: the number of points used when drawing the best fit curve, if `plot_curve`
         :param equation_rounding: the number of decimal places to round the equation to if `plot_curve`
-        :param plot_multiple: if `plot_multiple`, then this `.plot()` call will not cause the plot to be displayed,
+        :param multiple: if `plot_multiple`, then this `.plot()` call will not cause the plot to be displayed,
                     allowing subsequent calls to add more layers to the plot
         """
         if MISSING_MAT_PLOT:
@@ -859,7 +859,7 @@ class Timer(BaseTimer):
         if x_label is not None:
             plt.xlabel(x_label)
 
-        if not plot_multiple:
+        if not multiple:
             plt.show()
 
     def predict(self, parameters: Tuple[str, dict], *args, time_unit=BaseTimer.MS, rounding=8, **kwargs) -> float:

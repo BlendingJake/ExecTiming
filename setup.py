@@ -21,7 +21,7 @@ with open("README.md", "r") as file:
 
 setuptools.setup(
     name="exectiming",
-    version="2.0.0",
+    version="2.0.1",
     author="Jacob Morris",
     author_email="blendingjake@gmail.com",
     description="A Python module for measuring the execution time of code",
