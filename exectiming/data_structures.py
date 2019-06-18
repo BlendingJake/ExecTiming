@@ -97,6 +97,13 @@ class Split:
             collapsed = dict((i, new_args[i]) for i in range(len(new_args)) if i not in exclude)
             collapsed.update(dict((key, value) for key, value in new_kwargs.items() if key not in exclude))
 
+            # ENSURE INTEGERS
+            for value in collapsed.values():
+                if not isinstance(value, int):
+                    raise RuntimeWarning(
+                        "All transformed, non-excluded argument values must be integers to determine a best-fit-curve"
+                    )
+
             points.append((collapsed, run.time))
 
         if curve_type is any:

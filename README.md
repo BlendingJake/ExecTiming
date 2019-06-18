@@ -287,6 +287,8 @@ timer.plot("sorted", plot_curve=True, curve=sorted_curve, title="Sorting Algorit
  * `title`, `x_label`, and `y_label` of the last call will be used
 
 ## TODO
+ - [x] Add parameter checking to `.plot()` and `.best_fit_curve()` to make sure 
+ arguments are integers to avoid difficult to decipher errors
  - [x] Change `.best_fit_curve()` to allow `transformers` to be a callable
  - [x] Change `.output()` to not require `split_index` if `transformers={0:len}`. 
  Allow `transformers` to be just a function, if there is only one argument, or a map 
