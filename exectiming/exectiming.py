@@ -210,7 +210,7 @@ class StaticTimer(BaseTimer):
         Otherwise, the measured time(s) will be returned along with the return value of the wrapped function
         :param runs: how many times the execution time of the wrapped function will be measured
         :param iterations_per_run: how many times the wrapped function will be called for each run. The time for the
-                    run will the sum of the times of iterations
+                    run will be the sum of the times of iterations
         :param average_runs: whether to average the measured times from all the runs together or not
         :param display: whether to display the measured time or to return it as
                     `Tuple[function return value: any, times: Union[float, List[float]]]`
@@ -354,7 +354,8 @@ class StaticTimer(BaseTimer):
         :param block: either a callable or a string
         :param args: any positional arguments to pass into `block` if it is callable
         :param runs: the number of times to measure the execution time
-        :param iterations_per_run: the number of times to execute the function for each run
+        :param iterations_per_run: the number of times to execute the function during each run. The time for the
+                    run will be the sum of the times of iterations
         :param average_runs: whether to average the runs together or not
         :param display: whether to display the measured time or to return it
         :param time_unit: the unit to display the measured time in if `display`
@@ -631,7 +632,8 @@ class Timer(BaseTimer):
         """
         A decorator that will time a function and store the measured time
         :param runs: the number times to measure the execution time
-        :param iterations_per_run: how many times to execute the function for each run
+        :param iterations_per_run: how many times to execute the function for each run. The time for the
+                    run will be the sum of the times of iterations
         :param call_callable_args: If True, then any `callable` arguments/parameters that are passed into the wrapped
                     function will be replaced with their return value. So `wrapped(callable)` will actually be
                     `wrapped(callable())`
@@ -1007,7 +1009,8 @@ class Timer(BaseTimer):
         :param block: either a callable or a string
         :param args: any positional arguments to pass into `block` if it is callable
         :param runs: the number of times to measure the execution time
-        :param iterations_per_run: the number of times to call/evaluate `block` for each run
+        :param iterations_per_run: the number of times to call/evaluate `block` for each run. The time for the
+                    run will be the sum of the times of iterations
         :param call_callable_args: If True, then any `callable` in `args` or `kwargs` will be replaced with their
                     return value. So `time_it(func, callable1, something=callable2)` will become
                     `func(callable1(), something=callable2())`. Only useful if `block` is callable

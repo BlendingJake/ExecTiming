@@ -224,6 +224,7 @@ timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude={1}, transformers
  two arguments, so `key=0` says to use the first as the independent variable and
  `transformer=len` will transform the list into an integer
  * Additionally, the title and x-axis labels are specified and rounding set lower
+ * The equation displayed on the plot uses the timescale specified by `time_unit`
 
 ### Plotting multiple splits
 ```python
