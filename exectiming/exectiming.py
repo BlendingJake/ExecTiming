@@ -806,9 +806,9 @@ class Timer(BaseTimer):
             if transformer is not None:
                 value = transformer(value)
 
-            # ENSURE INTEGER
-            if not isinstance(value, int):
-                raise RuntimeWarning("All transformed, key values must be integers to plot")
+            # ENSURE INTEGER OR FLOATS
+            if not isinstance(value, (int, float)):
+                raise RuntimeWarning("All transformed, key values must be numbers to plot")
 
             x_values.append(value)
             y_values.append(self._convert_time(run.time, time_unit))
