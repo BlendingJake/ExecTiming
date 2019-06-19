@@ -34,6 +34,37 @@ class BaseTimer:
     _time = perf_counter
 
     @staticmethod
+    def _argument_copier(args: tuple, kwargs: dict, copiers: Union[callable, Dict[Union[str, int], callable]]
+                         ) -> Tuple[list, dict]:
+        """
+        Take a list of keyword arguments and a map of positional arguments and replace any of them with the return value
+        from the corresponding copier function, where corresponding means the copier's key is the index of the
+        positional argument or the name of the keyword argument. The argument's value is replaced with
+        `copiers[key](argument value)` if `copiers` is a map, otherwise, with `copiers(argument value)`
+        :param args: any positional arguments
+        :param kwargs: any keyword arguments
+        :param copiers: a single callable that will be used for all arguments or a map of integer indices or string
+                    names to functions that will copy the corresponding argument
+        :return: return a copy of the list and map containing the parameters
+        """
+        is_copiers_callable = callable(copiers)
+        out_args, out_kwargs = list(args), dict(kwargs)
+
+        for i in range(len(args)):
+            if is_copiers_callable:
+                out_args[i] = copiers(args[i])
+            elif i in copiers:
+                out_args[i] = copiers[i](args[i])
+
+        for key in kwargs:
+            if is_copiers_callable:
+                out_kwargs[key] = copiers(kwargs[key])
+            elif key in copiers:
+                out_kwargs[key] = copiers[key](kwargs[key])
+
+        return out_args, out_kwargs
+
+    @staticmethod
     def _call_callable_args(args: tuple, kwargs: dict) -> Tuple[list, dict]:
         """
         If any value in args or kwargs is callable, then replace it with the result of calling the value
@@ -172,13 +203,14 @@ class StaticTimer(BaseTimer):
 
     @staticmethod
     def decorate(runs=1, iterations_per_run=1, average_runs=True, display=True, time_unit=BaseTimer.MS,
-                 output_stream: TextIO=stdout, call_callable_args=False, log_arguments=False) -> callable:
+                 output_stream: TextIO=stdout, call_callable_args=False, log_arguments=False,
+                 copiers: Union[callable, Dict[Union[str, int], callable]]=None) -> callable:
         """
         A decorator that will time a function and then either output the results to `output_stream` if `display`.
         Otherwise, the measured time(s) will be returned along with the return value of the wrapped function
         :param runs: how many times the execution time of the wrapped function will be measured
         :param iterations_per_run: how many times the wrapped function will be called for each run. The time for the
-                    run will the sum of the times of iterations
+                    run will be the sum of the times of iterations
         :param average_runs: whether to average the measured times from all the runs together or not
         :param display: whether to display the measured time or to return it as
                     `Tuple[function return value: any, times: Union[float, List[float]]]`
@@ -188,6 +220,11 @@ class StaticTimer(BaseTimer):
                     function will be replaced with their return value. So `wrapped(callable)` will actually be
                     `wrapped(callable())`
         :param log_arguments: whether to keep track of the arguments so they can be displayed if `display`
+        :param copiers: function(s) that will be used to copy any arguments such that the copied version is passed into
+                    the function. Useful when the wrapped function has side-effects and modifies one of the arguments.
+                    In that case, any subsequent iterations will be using the modified version. Copiers are used on each
+                    iteration to avoid that issue. Can be a single callable which will be used on all arguments, or a
+                    map of positional indices or keyword argument names to functions.
         :return: a function wrapper
         """
         def wrapper(func: callable) -> callable:
@@ -201,22 +238,30 @@ class StaticTimer(BaseTimer):
                 """
                 run_totals = []
                 value = None
-                new_args, new_kwargs = args, kwargs
                 arguments = []
 
                 # MEASURE
                 for _ in range(runs):
                     # call any callable args and replace them with the result of the call
                     if call_callable_args:
-                        new_args, new_kwargs = StaticTimer._call_callable_args(args, kwargs)
+                        run_args, run_kwargs = StaticTimer._call_callable_args(args, kwargs)
+                    else:
+                        run_args, run_kwargs = args, kwargs
 
                     if log_arguments:
-                        arguments.append((new_args, new_kwargs))
+                        arguments.append((run_args, run_kwargs))
 
                     st = StaticTimer._time()
                     for _ in range(iterations_per_run):
-                        value = func(*new_args, **new_kwargs)
+                        if copiers is not None:  # conditional should have minimal effect on execution time
+                            delta = StaticTimer._time()
+                            iteration_args, iteration_kwargs = StaticTimer._argument_copier(run_args, run_kwargs,
+                                                                                            copiers)
+                            st += StaticTimer._time() - delta  # ignore the amount of time needed to copy the arguments
+                        else:
+                            iteration_args, iteration_kwargs = run_args, run_kwargs
 
+                        value = func(*iteration_args, **iteration_kwargs)
                     run_totals.append(StaticTimer._time() - st)
 
                 # DETERMINE TIME, DISPLAY OR RETURN
@@ -300,7 +345,8 @@ class StaticTimer(BaseTimer):
     @staticmethod
     def time_it(block: Union[str, callable], *args, runs=1, iterations_per_run=1, average_runs=True, display=True,
                 time_unit=BaseTimer.MS, output_stream: TextIO=stdout, call_callable_args=False, log_arguments=False,
-                globals: dict=(), locals: dict=(), **kwargs) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
+                globals: dict=(), locals: dict=(), copiers: Union[callable, Dict[Union[str, int], callable]]=None,
+                setup: str="", **kwargs) -> Union[any, Tuple[any, float], Tuple[any, List[float]]]:
         """
         Measure the execution time of a function are string. Positional and keyword arguments can be passed through to
         `block` if it is a function. `eval` is used if `block` is a string and so a namespace can be passed to it by
@@ -308,7 +354,8 @@ class StaticTimer(BaseTimer):
         :param block: either a callable or a string
         :param args: any positional arguments to pass into `block` if it is callable
         :param runs: the number of times to measure the execution time
-        :param iterations_per_run: the number of times to execute the function for each run
+        :param iterations_per_run: the number of times to execute the function during each run. The time for the
+                    run will be the sum of the times of iterations
         :param average_runs: whether to average the runs together or not
         :param display: whether to display the measured time or to return it
         :param time_unit: the unit to display the measured time in if `display`
@@ -320,6 +367,14 @@ class StaticTimer(BaseTimer):
                     Only valid if `block` is callable
         :param globals: a global namespace to pass to `eval` if `block` is a string
         :param locals: a local namespace to pass to `eval` if `block` is a string
+        :param copiers: function(s) that will be used to copy any arguments such that the copied version is passed into
+                    the function. Useful when the wrapped function has side-effects and modifies one of the arguments.
+                    In that case, any subsequent iterations will be using the modified version. Copiers are used on each
+                    iteration to avoid that issue. Can be a single callable which will be used on all arguments, or a
+                    map of positional indices or keyword argument names to functions. Only will be used if `block` is
+                    `callable`
+        :param setup: used when `block` is a string. Will be executed once before `block` is evaluated to setup any
+                    needed names in the namespace.
         :param kwargs: any keyword arguments to pass into `block` if it is callable
         :return: If `display`, then just the return value of calling/evaluating `block` is returned. Otherwise, a
                     tuple of the return value and the measured time(s) is returned. If `average`, then a single time
@@ -329,22 +384,36 @@ class StaticTimer(BaseTimer):
         run_totals = []
         arguments = []
         value = None
-        new_args, new_kwargs = args, kwargs
         globals = globals if globals else {}
         locals = locals if locals else {}
+        run_args, run_kwargs = None, None  # add to get rid of "might be referenced before declared", which is invalid
+
+        # setup anything needed for evaluating `block` if it is a string
+        if not callable(block) and setup:
+            exec(setup)
 
         # MEASURE
         for _ in range(runs):
-            if callable(block) and call_callable_args:
-                new_args, new_kwargs = StaticTimer._call_callable_args(args, kwargs)
+            if callable(block):
+                if call_callable_args:
+                    run_args, run_kwargs = StaticTimer._call_callable_args(args, kwargs)
+                else:
+                    run_args, run_kwargs = args, kwargs
+
+                if log_arguments:
+                    arguments.append((run_args, run_kwargs))
 
             st = StaticTimer._time()
             for _ in range(iterations_per_run):
                 if callable(block):
-                    if log_arguments:
-                        arguments.append((new_args, new_kwargs))
+                    if copiers is not None:  # conditional should have minimal effect on execution time
+                        delta = StaticTimer._time()
+                        iteration_args, iteration_kwargs = StaticTimer._argument_copier(run_args, run_kwargs, copiers)
+                        st += StaticTimer._time() - delta  # ignore the amount of time needed to copy the arguments
+                    else:
+                        iteration_args, iteration_kwargs = run_args, run_kwargs
 
-                    value = block(*new_args, **new_kwargs)
+                    value = block(*iteration_args, **iteration_kwargs)
                 else:
                     value = eval(block, globals, locals)
 
@@ -512,17 +581,17 @@ class Timer(BaseTimer):
 
         return "".join(string)
 
-    def best_fit_curve(self, curve_type: str=any, exclude: Set[Union[str, int]]=(), split_index: Union[int, str]=-1,
+    def best_fit_curve(self, split_index: Union[int, str]=-1, curve_type: str=any, exclude: Set[Union[str, int]]=(),
                        transformers: Union[callable, Dict[Union[str, int], callable]]=()
                        ) -> Union[None, Tuple[str, dict]]:
         """
         Determine the best fit curve for a split using logged arguments as the independent variable and the measured
         time as the dependent variable. By default, the most recent split is used. All non-excluded arguments must have
         integer values to allow curve calculation. If the values are not integers, then they must be transformed.
+        :param split_index: The index or name of the split to determine the best fit curve for
         :param curve_type: specify a specific curve type to determine the parameters for
         :param exclude: the indices of the positional arguments or keys of keyword arguments to exclude when performing
                     curve calculation
-        :param split_index: The index or name of the split to determine the best fit curve for
         :param transformers: function(s) that take an argument and return an integer, as integers are needed for
                 determining the best fit curve. `transformers` can be formatted in one of two ways:
                 1. A callable which will be used with every argument that is encountered, aka, `transformers=len`
@@ -559,11 +628,12 @@ class Timer(BaseTimer):
                                     args=args, kwargs=kwargs))
 
     def decorate(self, runs=1, iterations_per_run=1, call_callable_args=False, log_arguments=False, split=True,
-                 split_label: str=None) -> callable:
+                 split_label: str=None, copiers: Union[callable, Dict[Union[str, int], callable]]=None) -> callable:
         """
         A decorator that will time a function and store the measured time
         :param runs: the number times to measure the execution time
-        :param iterations_per_run: how many times to execute the function for each run
+        :param iterations_per_run: how many times to execute the function for each run. The time for the
+                    run will be the sum of the times of iterations
         :param call_callable_args: If True, then any `callable` arguments/parameters that are passed into the wrapped
                     function will be replaced with their return value. So `wrapped(callable)` will actually be
                     `wrapped(callable())`
@@ -571,13 +641,17 @@ class Timer(BaseTimer):
                     for curve calculation
         :param split: create a split that will be used to store any runs created
         :param split_label: what the name of the new split will be. If None, then func.__name__ will be used
+        :param copiers: function(s) that will be used to copy any arguments such that the copied version is passed into
+                    the function. Useful when the wrapped function has side-effects and modifies one of the arguments.
+                    In that case, any subsequent iterations will be using the modified version. Copiers are used on each
+                    iteration to avoid that issue. Can be a single callable which will be used on all arguments, or a
+                    map of positional indices or keyword argument names to functions.
         :return: a function wrapper
         """
         def wrapper(func: callable) -> callable:
             @wraps(func)
             def inner_wrapper(*args, **kwargs) -> any:
                 value = None
-                new_args, new_kwargs = args, kwargs
 
                 if split:
                     self.split(label=func.__name__ if split_label is None else split_label)
@@ -588,18 +662,28 @@ class Timer(BaseTimer):
                 for _ in range(runs):
                     # call any callable args and replace them with the result of the call
                     if call_callable_args:
-                        new_args, new_kwargs = self._call_callable_args(args, kwargs)
+                        run_args, run_kwargs = self._call_callable_args(args, kwargs)
+                    else:
+                        run_args, run_kwargs = args, kwargs
 
                     st = StaticTimer._time()
                     for _ in range(iterations_per_run):
-                        value = func(*new_args, **new_kwargs)
+                        if copiers is not None:  # conditional should have minimal effect on execution time
+                            delta = StaticTimer._time()
+                            iteration_args, iteration_kwargs = StaticTimer._argument_copier(run_args, run_kwargs,
+                                                                                            copiers)
+                            st += StaticTimer._time() - delta  # ignore the amount of time needed to copy the arguments
+                        else:
+                            iteration_args, iteration_kwargs = run_args, run_kwargs
+
+                        value = func(*iteration_args, **iteration_kwargs)
 
                     run = Run(label=func.__name__, time=self._time() - st, runs=1,
                               iterations_per_run=iterations_per_run)
 
                     if log_arguments:
-                        run.args = new_args
-                        run.kwargs = new_kwargs
+                        run.args = run_args
+                        run.kwargs = run_kwargs
 
                     self.splits[-1].add_run(run)
 
@@ -671,7 +755,7 @@ class Timer(BaseTimer):
 
     def plot(self, split_index: Union[str, int]=-1, key: Union[str, int]=None, transformer: callable=None,
              time_unit=BaseTimer.MS, y_label: str="Time", x_label: str=None, title: str=None, plot_curve: bool=False,
-             curve: Tuple[str, dict]=None, curve_steps: int=100, equation_rounding: int=8):
+             curve: Tuple[str, dict]=None, curve_steps: int=100, equation_rounding: int=8, multiple=False):
         """
         Plot the runs in the specified split or the most recent split if none is specified. If there is more than one
         argument logged for the runs, then a key needs to be provided to use as the independent variable. The argument's
@@ -690,6 +774,8 @@ class Timer(BaseTimer):
                     returns it
         :param curve_steps: the number of points used when drawing the best fit curve, if `plot_curve`
         :param equation_rounding: the number of decimal places to round the equation to if `plot_curve`
+        :param multiple: if `plot_multiple`, then this `.plot()` call will not cause the plot to be displayed,
+                    allowing subsequent calls to add more layers to the plot
         """
         if MISSING_MAT_PLOT:
             raise RuntimeWarning("matplotlib is needed for plotting and it couldn't be found")
@@ -722,10 +808,14 @@ class Timer(BaseTimer):
             if transformer is not None:
                 value = transformer(value)
 
+            # ENSURE INTEGER OR FLOATS
+            if not isinstance(value, (int, float)):
+                raise RuntimeWarning("All transformed, key values must be numbers to plot")
+
             x_values.append(value)
             y_values.append(self._convert_time(run.time, time_unit))
 
-        plt.plot(x_values, y_values, "ro")
+        scatter_plot = plt.plot(x_values, y_values, "o")
 
         if title is None:
             plt.title(self.splits[adjusted_index].label)
@@ -755,12 +845,17 @@ class Timer(BaseTimer):
                 lower_x += step_value
 
             # PLOT CURVE
+            label = self.splits[adjusted_index].label
             plt.plot(
                 curve_x_values,
                 curve_y_values,
-                label=Split.best_fit_curves[curve[0]].equation(
-                    dict((key, self._convert_time(value, time_unit, False)) for key, value in curve[1].items()),
-                    rounding=equation_rounding
+                scatter_plot[-1].get_color(),  # match color from above
+                label="{}: {}".format(
+                    label[:17] + "..." if len(label) > 20 else label,
+                    Split.best_fit_curves[curve[0]].equation(
+                        dict((key, self._convert_time(value, time_unit, False)) for key, value in curve[1].items()),
+                        rounding=equation_rounding
+                    )
                 )
             )
             plt.legend()
@@ -770,7 +865,8 @@ class Timer(BaseTimer):
         if x_label is not None:
             plt.xlabel(x_label)
 
-        plt.show()
+        if not multiple:
+            plt.show()
 
     def predict(self, parameters: Tuple[str, dict], *args, time_unit=BaseTimer.MS, rounding=8, **kwargs) -> float:
         """
@@ -864,32 +960,33 @@ class Timer(BaseTimer):
             if not split.runs:  # skip splits with no logged times
                 continue
 
-            self.output_stream.write("{}:\n".format(split.label))
+            stats = split.statistics()
+            self.output_stream.write("{}[runs={}, total={} {}]:\n".format(
+                split.label,
+                stats["count"],
+                self._convert_time(stats["total"], time_unit),
+                time_unit
+            ))
 
             # STATISTICS
-            self.output_stream.write("{}{:<20}{}\n".format(self.indent, "Runs", len(split.runs)))
-            self.output_stream.write("{}{:<20}{} {}\n".format(
+            self.output_stream.write("{}{:>20} = {} | {} | {} {}\n".format(
                 self.indent,
-                "Total Time",
-                self._convert_time(sum(run.time for run in split.runs), time_unit),
+                "Min | Max | Average",
+                self._convert_time(stats["min"], time_unit),
+                self._convert_time(stats["max"], time_unit),
+                self._convert_time(stats["average"], time_unit),
                 time_unit
             ))
-            self.output_stream.write("{}{:<20}{} {}\n".format(
-                self.indent,
-                "Average",
-                self._convert_time(split.average(), time_unit),
-                time_unit
-            ))
-            self.output_stream.write("{}{:<20}{} {}\n".format(
+            self.output_stream.write("{}{:>20} = {} {}\n".format(
                 self.indent,
                 "Standard Deviation",
-                self._convert_time(split.standard_deviation(), time_unit),
+                self._convert_time(stats["standard_deviation"], time_unit),
                 time_unit
             ))
-            self.output_stream.write("{}{:<20}{} {}\n".format(
+            self.output_stream.write("{}{:>20} = {} {}\n".format(
                 self.indent,
                 "Variance",
-                self._convert_time(split.variance(), time_unit),
+                self._convert_time(stats["variance"], time_unit),
                 time_unit
             ))
 
@@ -903,8 +1000,8 @@ class Timer(BaseTimer):
         self.splits.append(Split(label=label))
 
     def time_it(self, block: Union[str, callable], *args, runs=1, iterations_per_run=1, call_callable_args=False,
-                log_arguments=False, split=True, split_label=None, globals: dict=(), locals: dict=(), **kwargs
-                ) -> any:
+                log_arguments=False, split=True, split_label=None, globals: dict=(), locals: dict=(),
+                copiers: Union[callable, Dict[Union[str, int], callable]]=None, setup: str="", **kwargs) -> any:
         """
         Measure the execution time of a function are string. Positional and keyword arguments can be passed through to
         `block` if it is a function. `eval` is used if `block` is a string and so a namespace can be passed to it by
@@ -912,7 +1009,8 @@ class Timer(BaseTimer):
         :param block: either a callable or a string
         :param args: any positional arguments to pass into `block` if it is callable
         :param runs: the number of times to measure the execution time
-        :param iterations_per_run: the number of times to call/evaluate `block` for each run
+        :param iterations_per_run: the number of times to call/evaluate `block` for each run. The time for the
+                    run will be the sum of the times of iterations
         :param call_callable_args: If True, then any `callable` in `args` or `kwargs` will be replaced with their
                     return value. So `time_it(func, callable1, something=callable2)` will become
                     `func(callable1(), something=callable2())`. Only useful if `block` is callable
@@ -923,13 +1021,21 @@ class Timer(BaseTimer):
                     `block` is callable. Otherwise, it will be the block itself.
         :param globals: a global namespace to pass to `eval` if `block` is a string
         :param locals: a local namespace to pass to `eval` if `block` is a string
+        :param copiers: function(s) that will be used to copy any arguments such that the copied version is passed into
+                    the function. Useful when the wrapped function has side-effects and modifies one of the arguments.
+                    In that case, any subsequent iterations will be using the modified version. Copiers are used on each
+                    iteration to avoid that issue. Can be a single callable which will be used on all arguments, or a
+                    map of positional indices or keyword argument names to functions. Only will be used if `block` is
+                    `callable`
+        :param setup: used when `block` is a string. Will be executed once before `block` is evaluated to setup any
+                    needed names in the namespace.
         :param kwargs: any keyword arguments to pass into `block` if it is callable
         :return: a return/result value of calling/evaluating `block`
         """
         value = None
-        new_args, new_kwargs = args, kwargs
         globals = globals if globals else {}
         locals = locals if locals else {}
+        run_args, run_kwargs = None, None  # add to get rid of "might be referenced before declared", which is invalid
 
         if split:
             if split_label is None:
@@ -939,15 +1045,29 @@ class Timer(BaseTimer):
         elif not self.splits:
             raise RuntimeWarning("No split exists. Do .split(), decorate(split=True), or Timer(split=True)")
 
+        # setup anything needed for future runs of `block` if it is a string
+        if not callable(block) and setup:
+            exec(setup)
+
         # MEASURE
         for _ in range(runs):
-            if callable(block) and call_callable_args:
-                new_args, new_kwargs = self._call_callable_args(args, kwargs)
+            if callable(block):
+                if call_callable_args:
+                    run_args, run_kwargs = self._call_callable_args(args, kwargs)
+                else:
+                    run_args, run_kwargs = args, kwargs
 
             st = StaticTimer._time()
             for _ in range(iterations_per_run):
                 if callable(block):
-                    value = block(*new_args, **new_kwargs)
+                    if copiers is not None:  # conditional should have minimal effect on execution time
+                        delta = StaticTimer._time()
+                        iteration_args, iteration_kwargs = StaticTimer._argument_copier(run_args, run_kwargs, copiers)
+                        st += StaticTimer._time() - delta  # ignore the amount of time needed to copy the arguments
+                    else:
+                        iteration_args, iteration_kwargs = run_args, run_kwargs
+
+                    value = block(*iteration_args, **iteration_kwargs)
                 else:
                     value = eval(block, globals, locals)
 
@@ -955,8 +1075,8 @@ class Timer(BaseTimer):
                       runs=1, iterations_per_run=iterations_per_run)
 
             if log_arguments:
-                run.args = new_args
-                run.kwargs = new_kwargs
+                run.args = run_args
+                run.kwargs = run_kwargs
 
             self.splits[-1].add_run(run)
 

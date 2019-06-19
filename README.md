@@ -79,16 +79,21 @@ factorial(lambda: randint(3, 40))
 ```python
 from exectiming.exectiming import StaticTimer
 
-StaticTimer.time_it("pow(2, 64)", runs=5, iterations_per_run=10000)
-# 102.40978 ms - pow(2, 64) ... [runs=  5, iterations=10000]
+StaticTimer.time_it("pow(2, 64)", runs=10, iterations_per_run=10000)
+#  107.10668 ms - pow(2, 64) ... [runs= 10, iterations=10000]  
 
-StaticTimer.time_it("2**64", runs=5, iterations_per_run=10000)
-#  77.39217 ms - 2**64    ...   [runs=  5, iterations=10000]
+StaticTimer.time_it("2**64", runs=10, iterations_per_run=10000)
+#   68.75266 ms - 2**64 ... [runs= 10, iterations=10000] 
+
+StaticTimer.time_it("1<<64", runs=10, iterations_per_run=10000)
+#   65.53690 ms - 1<<64 ... [runs= 10, iterations=10000] 
 ```
 
  * Strings can be timed
  * Multiple runs can be measured then averaged together to get a more accurate result
- * Any needed `globals` or `locals` can be specified by passing `globals=` and `locals=`
+ * Anything needed names can be passed in by setting `globals=`, `locals=`, or `setup=`. 
+ The first two must be maps of names to objects. The second is a string that is 
+ executed once because the string `block` is timed.
 
 `time_it` can be used to re-write the decorator above example like so:
 ```python
@@ -122,38 +127,37 @@ bubble_sort(lambda: [randint(0, 1000) for _ in range(randint(100, 5000))])
 
 timer.output(split_index="bubble_sort", transformers={0: len})
 # bubble_sort:
-#     1360.32880 ms - bubble_sort(3004) ... [runs=  1, iterations=  1]
-#      726.70468 ms - bubble_sort(2201) ... [runs=  1, iterations=  1]
-#     3313.44760 ms - bubble_sort(4692) ... [runs=  1, iterations=  1]
-#      562.01346 ms - bubble_sort(1947) ... [runs=  1, iterations=  1]
-#      200.57170 ms - bubble_sort(1169) ... [runs=  1, iterations=  1]
+#     1333.19493 ms - bubble_sort(2141) ... [runs=  1, iterations=  1]                     
+#     1413.75243 ms - bubble_sort(2546) ... [runs=  1, iterations=  1]                     
+#     4247.70385 ms - bubble_sort(4530) ... [runs=  1, iterations=  1]                     
+#       34.01533 ms - bubble_sort(421)  ... [runs=  1, iterations=  1]                     
+#      675.07202 ms - bubble_sort(1752) ... [runs=  1, iterations=  1]   
 
 timer.statistics()
-# bubble_sort:
-#     Runs                5
-#     Total Time          6163.06623 ms
-#     Average             1232.61325 ms
-#     Standard Deviation  1106.06873 ms
-#     Variance            1223.38803 ms
+# bubble_sort[runs=5, total=7703.73856 ms]:
+#      Min | Max | Average = 34.01533 | 4247.70385 | 1540.74771 ms
+#       Standard Deviation = 1442.66797 ms
+#                 Variance = 2081.29087 ms
 
-timer.best_fit_curve(transformers=len)
-# ('Polynomial', {'b': -0.013786, 'x^0': 0.0, 'x^1': 0.0000066066, 'x^2': 0.000000149})
+print(timer.best_fit_curve(transformers=len))
+# ('Polynomial', {'a': 2.8042911992314363e-07, 'b': -9.670141667209306e-05, 'c': 0.024305228337961525})
 ```
 
  * `Timer` stores the output until requested
  * Function parameters can be transformed in the output. In the above example,
  `transformers={0: len}` indicates that the positional argument at index `0` should have its
- value in the output replaced by the result of calling the function with that parameter.
+ value in the output replaced by the result of calling the function with that parameter. 
  The output otherwise would have been something like `bubble_sort([1, 2, 3, 4, 5, ...])`
+ * `transformers=len` is also valid as all of the arguments can be transformed with `len`, so 
+ there is no need to specify which index/key the function should be used for.
  * Basic statistics can be displayed
  * A best-fit-curve can be determined. To use this, all logged function parameters
  must be integers. In this case, one was an a list, so it was transformed so that the
  analysis was done on the length of the list, instead of the list itself.
- * The resulting best fit curve is, if `n=len(list)`, `y = b + x^0*n^0 + x^1*n^1 + x^2*n^2`, where
- `x^2*n^2` is the coefficient `x^2` multiplied by n-squared. We can extrapolate
- using this curve to determine what the execution time of a list of list of
- length `n=10000`, which would be `-0.013786 + 0.0000066066*10000 + 0.000000149*10000^2`.
- That is `15.028 s` or `15028 ms`
+ * The resulting best fit curve is, if `x=len(list)`, `y = ax^2 + bx + c`. 
+ We can extrapolate execution time using this curve to determine how long it would 
+ take to sort a list of length `x=10000`, which would be 
+ `0.0000002804*10000^2 - 0.0000967*10000 + 0.0243`. That is `27.10 s` or `27100 ms`
 
 ### <a name="plotting">Plotting factorial</a>
 ```python
@@ -167,7 +171,7 @@ def factorial(n):
 factorial(lambda: randint(1, 100))
 timer.plot(plot_curve=True, time_unit=timer.US, equation_rounding=5)
 ```
-![Imgur Image](https://i.imgur.com/c00v9OB.png)
+![Imgur Image](https://imgur.com/7G1mDnO.png)
 
  * `.plot()` provides a quick way to plot the measured times against an argument
  that is the independent variable
@@ -182,7 +186,7 @@ bubble_sort(lambda: [randint(0, 100) for _ in range(randint(100, 2500))])
 curve = timer.best_fit_curve(transformers=len)
 timer.plot(transformer=len, plot_curve=True, curve=curve, x_label="List Length")
 ```
-![Imgur Image](https://imgur.com/cJ62w1Z.png)
+![Imgur Image](https://imgur.com/t2eZ0aN.png)
 
  * The curve can be determined beforehand and then passed into `plot()`
  * `plot()` needs `transformer=len` because the independent and dependent variables
@@ -212,7 +216,7 @@ timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude={1}, transformers
            transformer=len, time_unit=timer.US, x_label="List Length", equation_rounding=4,
            title="Binary Search - Random Size, Random Element")
 ```
-![Imgur Image](https://imgur.com/a9kNtL9.png)
+![Imgur Image](https://imgur.com/SeFfZHS.png)
 
  * `binary_search()` takes two arguments, so `best_fit_curve` is set to ignore
  the second one, at index 1, and to transform the argument at index 0 using `len`
@@ -220,8 +224,72 @@ timer.plot(plot_curve=True, curve=timer.best_fit_curve(exclude={1}, transformers
  two arguments, so `key=0` says to use the first as the independent variable and
  `transformer=len` will transform the list into an integer
  * Additionally, the title and x-axis labels are specified and rounding set lower
+ * The equation displayed on the plot uses the timescale specified by `time_unit`
+
+### Plotting multiple splits
+```python
+from exectiming.exectiming import Timer
+from random import randint
+
+
+timer = Timer()
+
+
+def bubble_sort(array):
+    while True:
+        switched = False
+        for i in range(0, len(array)-1):
+            if array[i] > array[i+1]:
+                array[i], array[i+1] = array[i+1], array[i]
+                switched = True
+
+        if not switched:
+            break
+
+    return array
+
+
+def selection_sort(array):
+    for i in range(len(array) - 1):
+        # find min
+        min_i = i
+        for j in range(i+1, len(array)):
+            if array[j] < array[min_i]:
+                min_i = j
+
+        # swap
+        array[i], array[min_i] = array[min_i], array[i]
+
+    return array
+
+
+timer.time_it(bubble_sort, lambda: [randint(0, 1000) for _ in range(randint(100, 3000))], call_callable_args=True,
+              log_arguments=True, runs=10)
+timer.time_it(selection_sort, lambda: [randint(0, 1000) for _ in range(randint(100, 3000))], call_callable_args=True,
+              log_arguments=True, runs=10)
+timer.time_it(sorted, lambda: [randint(0, 1000) for _ in range(randint(100, 3000))], call_callable_args=True,
+              log_arguments=True, runs=10)
+
+
+bubble_sort_curve = timer.best_fit_curve("bubble_sort", transformers=len)
+selection_sort_curve = timer.best_fit_curve("selection_sort", transformers=len)
+sorted_curve = timer.best_fit_curve("sorted", transformers=len)
+
+timer.plot("bubble_sort", plot_curve=True, curve=bubble_sort_curve, multiple=True, transformer=len)
+timer.plot("selection_sort", plot_curve=True, curve=selection_sort_curve, multiple=True, transformer=len)
+timer.plot("sorted", plot_curve=True, curve=sorted_curve, title="Sorting Algorithms", x_label="List Length",
+           transformer=len)
+
+```
+![Imgur Image](https://imgur.com/zm1p6jz.png)
+
+ * Multiple splits and curves can be plotted by setting `multiple=True` for 
+ all but the last call to `.plot()`.
+ * `title`, `x_label`, and `y_label` of the last call will be used
 
 ## TODO
+ - [x] Add parameter checking to `.plot()` and `.best_fit_curve()` to make sure 
+ arguments are integers to avoid difficult to decipher errors
  - [x] Change `.best_fit_curve()` to allow `transformers` to be a callable
  - [x] Change `.output()` to not require `split_index` if `transformers={0:len}`. 
  Allow `transformers` to be just a function, if there is only one argument, or a map 
