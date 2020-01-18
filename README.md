@@ -47,7 +47,10 @@ For full functionality:
  * `numpy` - for best-fit-curve
  * `matplotlib` - for plotting
 
-However, basic functionality will still exist even if those dependencies aren't found
+However, if plotting and curve fitting are not needed, then the dependencies can be ignored.
+```
+pip install --no-deps exectiming
+```
 
 
 ### <a name="decorate">Static decorate</a>
